@@ -1,0 +1,23 @@
+# Python 缓存 (必须忽略！)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 环境变量与密钥 (安全第一！)
+.env
+
+# IDE 配置文件 (忽略掉)
+.vscode/
+.idea/
+
+# 项目输出目录 (忽略掉)
+outputs/*
+!outputs/.gitkeep
+models/*
+!models/.gitkeep
+
+# 虚拟环境 (如果你的环境叫这些名字)
+venv/
+.venv/
+env/
