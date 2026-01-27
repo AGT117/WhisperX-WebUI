@@ -1,6 +1,6 @@
-# WhisperX WebUI by AGT
+# WhisperX WebUI
 
-**WhisperX WebUI by AGT** 是一个基于 `whisperx` 的离线/本地化音频转录与字幕生成工具。
+**WhisperX WebUI** 是一个基于 `whisperx` 的离线/本地化音频转录与字幕生成工具。
 
 它集成了 **人声分离（BS-RoFormer）**、**音素级强制对齐** 和 **说话人聚类（Pyannote）** 技术。通过直观的 `Gradio` 网页界面，你可以轻松地批量处理音频/视频文件，并导出 JSON 数据与 SRT 字幕。
 
