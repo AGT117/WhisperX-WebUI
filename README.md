@@ -6,7 +6,7 @@
 
 ## ✨ 界面效果展示：
 
-![alt text](image-1.png)
+![WhisperX WebUI 界面预览](demo/whisperx-webui.png)
 
 运行效果存放在demo文件夹中
 
