@@ -1,0 +1,954 @@
+[
+  {
+    "start": 1.364,
+    "end": 26.173,
+    "text": " I've seen the summers, the fall and winters Reaching for the moon I've walked a thousand miles just to be here And not a day too soon",
+    "words": [
+      {
+        "word": "I've",
+        "start": 1.364,
+        "end": 9.554,
+        "score": 0.81
+      },
+      {
+        "word": "seen",
+        "start": 9.614,
+        "end": 9.894,
+        "score": 0.837
+      },
+      {
+        "word": "the",
+        "start": 9.974,
+        "end": 10.134,
+        "score": 0.973
+      },
+      {
+        "word": "summers,",
+        "start": 10.234,
+        "end": 11.256,
+        "score": 0.804
+      },
+      {
+        "word": "the",
+        "start": 11.736,
+        "end": 11.796,
+        "score": 0.0
+      },
+      {
+        "word": "fall",
+        "start": 11.816,
+        "end": 12.357,
+        "score": 0.624
+      },
+      {
+        "word": "and",
+        "start": 12.657,
+        "end": 12.737,
+        "score": 0.373
+      },
+      {
+        "word": "winters",
+        "start": 12.777,
+        "end": 13.498,
+        "score": 0.851
+      },
+      {
+        "word": "Reaching",
+        "start": 14.119,
+        "end": 14.579,
+        "score": 0.82
+      },
+      {
+        "word": "for",
+        "start": 14.7,
+        "end": 15.06,
+        "score": 0.823
+      },
+      {
+        "word": "the",
+        "start": 15.34,
+        "end": 15.841,
+        "score": 0.806
+      },
+      {
+        "word": "moon",
+        "start": 16.101,
+        "end": 16.542,
+        "score": 0.948
+      },
+      {
+        "word": "I've",
+        "start": 18.364,
+        "end": 18.524,
+        "score": 0.668
+      },
+      {
+        "word": "walked",
+        "start": 18.584,
+        "end": 18.884,
+        "score": 0.677
+      },
+      {
+        "word": "a",
+        "start": 18.965,
+        "end": 19.025,
+        "score": 0.947
+      },
+      {
+        "word": "thousand",
+        "start": 19.145,
+        "end": 20.106,
+        "score": 0.912
+      },
+      {
+        "word": "miles",
+        "start": 20.546,
+        "end": 20.927,
+        "score": 0.436
+      },
+      {
+        "word": "just",
+        "start": 20.947,
+        "end": 21.047,
+        "score": 0.518
+      },
+      {
+        "word": "to",
+        "start": 21.107,
+        "end": 21.367,
+        "score": 0.803
+      },
+      {
+        "word": "be",
+        "start": 21.427,
+        "end": 21.848,
+        "score": 0.94
+      },
+      {
+        "word": "here",
+        "start": 22.849,
+        "end": 22.929,
+        "score": 0.0
+      },
+      {
+        "word": "And",
+        "start": 22.949,
+        "end": 23.069,
+        "score": 0.742
+      },
+      {
+        "word": "not",
+        "start": 23.17,
+        "end": 23.41,
+        "score": 0.623
+      },
+      {
+        "word": "a",
+        "start": 23.53,
+        "end": 23.55,
+        "score": 0.98
+      },
+      {
+        "word": "day",
+        "start": 23.79,
+        "end": 24.111,
+        "score": 0.621
+      },
+      {
+        "word": "too",
+        "start": 24.191,
+        "end": 24.771,
+        "score": 0.9
+      },
+      {
+        "word": "soon",
+        "start": 24.992,
+        "end": 26.173,
+        "score": 0.933
+      }
+    ]
+  },
+  {
+    "start": 27.453,
+    "end": 34.343,
+    "text": " Looking back at the life that we had, the things that we've been through.",
+    "words": [
+      {
+        "word": "Looking",
+        "start": 27.453,
+        "end": 28.094,
+        "score": 0.885
+      },
+      {
+        "word": "back",
+        "start": 28.174,
+        "end": 28.855,
+        "score": 0.627
+      },
+      {
+        "word": "at",
+        "start": 28.875,
+        "end": 29.095,
+        "score": 0.946
+      },
+      {
+        "word": "the",
+        "start": 29.556,
+        "end": 29.736,
+        "score": 0.339
+      },
+      {
+        "word": "life",
+        "start": 29.836,
+        "end": 30.017,
+        "score": 0.475
+      },
+      {
+        "word": "that",
+        "start": 30.077,
+        "end": 30.377,
+        "score": 0.491
+      },
+      {
+        "word": "we",
+        "start": 30.437,
+        "end": 30.798,
+        "score": 0.856
+      },
+      {
+        "word": "had,",
+        "start": 30.958,
+        "end": 31.379,
+        "score": 0.848
+      },
+      {
+        "word": "the",
+        "start": 31.879,
+        "end": 31.94,
+        "score": 0.234
+      },
+      {
+        "word": "things",
+        "start": 32.02,
+        "end": 32.34,
+        "score": 0.811
+      },
+      {
+        "word": "that",
+        "start": 32.42,
+        "end": 32.6,
+        "score": 0.356
+      },
+      {
+        "word": "we've",
+        "start": 32.621,
+        "end": 33.081,
+        "score": 0.506
+      },
+      {
+        "word": "been",
+        "start": 33.342,
+        "end": 33.962,
+        "score": 0.512
+      },
+      {
+        "word": "through.",
+        "start": 33.983,
+        "end": 34.343,
+        "score": 0.769
+      }
+    ]
+  },
+  {
+    "start": 36.286,
+    "end": 43.496,
+    "text": "Remember this day, as I go my way, that leads me back to you.",
+    "words": [
+      {
+        "word": "Remember",
+        "start": 36.286,
+        "end": 37.027,
+        "score": 0.893
+      },
+      {
+        "word": "this",
+        "start": 37.127,
+        "end": 37.548,
+        "score": 0.955
+      },
+      {
+        "word": "day,",
+        "start": 37.808,
+        "end": 38.629,
+        "score": 0.824
+      },
+      {
+        "word": "as",
+        "start": 38.649,
+        "end": 38.769,
+        "score": 0.631
+      },
+      {
+        "word": "I",
+        "start": 38.95,
+        "end": 39.05,
+        "score": 0.725
+      },
+      {
+        "word": "go",
+        "start": 39.07,
+        "end": 39.35,
+        "score": 0.942
+      },
+      {
+        "word": "my",
+        "start": 39.41,
+        "end": 39.791,
+        "score": 0.937
+      },
+      {
+        "word": "way,",
+        "start": 39.951,
+        "end": 40.332,
+        "score": 0.962
+      },
+      {
+        "word": "that",
+        "start": 40.752,
+        "end": 40.933,
+        "score": 0.746
+      },
+      {
+        "word": "leads",
+        "start": 41.013,
+        "end": 41.273,
+        "score": 0.629
+      },
+      {
+        "word": "me",
+        "start": 41.333,
+        "end": 41.534,
+        "score": 0.915
+      },
+      {
+        "word": "back",
+        "start": 41.614,
+        "end": 42.054,
+        "score": 0.638
+      },
+      {
+        "word": "to",
+        "start": 42.154,
+        "end": 42.815,
+        "score": 0.972
+      },
+      {
+        "word": "you.",
+        "start": 43.036,
+        "end": 43.496,
+        "score": 0.767
+      }
+    ]
+  },
+  {
+    "start": 44.678,
+    "end": 52.87,
+    "text": "When the lights don't place, the music fades, and I've done all I can do.",
+    "words": [
+      {
+        "word": "When",
+        "start": 44.678,
+        "end": 44.798,
+        "score": 0.313
+      },
+      {
+        "word": "the",
+        "start": 44.838,
+        "end": 44.999,
+        "score": 0.606
+      },
+      {
+        "word": "lights",
+        "start": 45.039,
+        "end": 45.499,
+        "score": 0.486
+      },
+      {
+        "word": "don't",
+        "start": 45.519,
+        "end": 45.72,
+        "score": 0.397
+      },
+      {
+        "word": "place,",
+        "start": 45.8,
+        "end": 46.521,
+        "score": 0.701
+      },
+      {
+        "word": "the",
+        "start": 47.001,
+        "end": 47.142,
+        "score": 0.437
+      },
+      {
+        "word": "music",
+        "start": 47.202,
+        "end": 47.823,
+        "score": 0.967
+      },
+      {
+        "word": "fades,",
+        "start": 47.983,
+        "end": 48.644,
+        "score": 0.533
+      },
+      {
+        "word": "and",
+        "start": 49.145,
+        "end": 49.265,
+        "score": 0.623
+      },
+      {
+        "word": "I've",
+        "start": 49.425,
+        "end": 49.505,
+        "score": 0.202
+      },
+      {
+        "word": "done",
+        "start": 49.786,
+        "end": 50.226,
+        "score": 0.497
+      },
+      {
+        "word": "all",
+        "start": 50.507,
+        "end": 50.567,
+        "score": 0.001
+      },
+      {
+        "word": "I",
+        "start": 50.587,
+        "end": 51.047,
+        "score": 0.882
+      },
+      {
+        "word": "can",
+        "start": 51.148,
+        "end": 51.728,
+        "score": 0.918
+      },
+      {
+        "word": "do.",
+        "start": 52.009,
+        "end": 52.87,
+        "score": 0.964
+      }
+    ]
+  },
+  {
+    "start": 53.542,
+    "end": 63.147,
+    "text": " Don't be afraid to walk alone Cause I'm on my way to you",
+    "words": [
+      {
+        "word": "Don't",
+        "start": 53.542,
+        "end": 53.923,
+        "score": 0.156
+      },
+      {
+        "word": "be",
+        "start": 53.943,
+        "end": 54.464,
+        "score": 0.819
+      },
+      {
+        "word": "afraid",
+        "start": 54.705,
+        "end": 55.327,
+        "score": 0.712
+      },
+      {
+        "word": "to",
+        "start": 55.868,
+        "end": 56.169,
+        "score": 0.816
+      },
+      {
+        "word": "walk",
+        "start": 56.229,
+        "end": 56.73,
+        "score": 0.718
+      },
+      {
+        "word": "alone",
+        "start": 56.75,
+        "end": 57.512,
+        "score": 0.848
+      },
+      {
+        "word": "Cause",
+        "start": 58.014,
+        "end": 58.274,
+        "score": 0.469
+      },
+      {
+        "word": "I'm",
+        "start": 58.294,
+        "end": 58.455,
+        "score": 0.538
+      },
+      {
+        "word": "on",
+        "start": 58.675,
+        "end": 58.856,
+        "score": 0.926
+      },
+      {
+        "word": "my",
+        "start": 58.936,
+        "end": 59.257,
+        "score": 0.945
+      },
+      {
+        "word": "way",
+        "start": 59.297,
+        "end": 59.698,
+        "score": 0.979
+      },
+      {
+        "word": "to",
+        "start": 60.179,
+        "end": 60.821,
+        "score": 0.96
+      },
+      {
+        "word": "you",
+        "start": 61.062,
+        "end": 63.147,
+        "score": 0.798
+      }
+    ]
+  },
+  {
+    "start": 90.076,
+    "end": 99.126,
+    "text": " Soon a new face will take up my place, a circle will renew.",
+    "words": [
+      {
+        "word": "Soon",
+        "start": 90.076,
+        "end": 90.697,
+        "score": 0.855
+      },
+      {
+        "word": "a",
+        "start": 90.817,
+        "end": 90.857,
+        "score": 0.85
+      },
+      {
+        "word": "new",
+        "start": 90.957,
+        "end": 91.297,
+        "score": 0.941
+      },
+      {
+        "word": "face",
+        "start": 91.477,
+        "end": 92.098,
+        "score": 0.964
+      },
+      {
+        "word": "will",
+        "start": 92.278,
+        "end": 92.519,
+        "score": 0.908
+      },
+      {
+        "word": "take",
+        "start": 92.579,
+        "end": 92.899,
+        "score": 0.984
+      },
+      {
+        "word": "up",
+        "start": 93.059,
+        "end": 93.159,
+        "score": 0.789
+      },
+      {
+        "word": "my",
+        "start": 93.219,
+        "end": 93.58,
+        "score": 0.991
+      },
+      {
+        "word": "place,",
+        "start": 93.72,
+        "end": 94.26,
+        "score": 0.693
+      },
+      {
+        "word": "a",
+        "start": 94.581,
+        "end": 94.681,
+        "score": 0.95
+      },
+      {
+        "word": "circle",
+        "start": 94.821,
+        "end": 95.382,
+        "score": 0.868
+      },
+      {
+        "word": "will",
+        "start": 95.442,
+        "end": 95.942,
+        "score": 0.865
+      },
+      {
+        "word": "renew.",
+        "start": 96.062,
+        "end": 99.126,
+        "score": 0.789
+      }
+    ]
+  },
+  {
+    "start": 99.146,
+    "end": 106.674,
+    "text": "Another chapter, forever after, I know I'll see you soon.",
+    "words": [
+      {
+        "word": "Another",
+        "start": 99.146,
+        "end": 99.786,
+        "score": 0.924
+      },
+      {
+        "word": "chapter,",
+        "start": 99.866,
+        "end": 101.288,
+        "score": 0.783
+      },
+      {
+        "word": "forever",
+        "start": 101.308,
+        "end": 102.149,
+        "score": 0.921
+      },
+      {
+        "word": "after,",
+        "start": 102.449,
+        "end": 103.69,
+        "score": 0.935
+      },
+      {
+        "word": "I",
+        "start": 103.71,
+        "end": 103.791,
+        "score": 0.938
+      },
+      {
+        "word": "know",
+        "start": 103.831,
+        "end": 104.131,
+        "score": 0.819
+      },
+      {
+        "word": "I'll",
+        "start": 104.151,
+        "end": 104.231,
+        "score": 0.246
+      },
+      {
+        "word": "see",
+        "start": 104.371,
+        "end": 104.992,
+        "score": 0.938
+      },
+      {
+        "word": "you",
+        "start": 105.012,
+        "end": 105.552,
+        "score": 0.898
+      },
+      {
+        "word": "soon.",
+        "start": 105.733,
+        "end": 106.674,
+        "score": 0.853
+      }
+    ]
+  },
+  {
+    "start": 107.474,
+    "end": 115.543,
+    "text": "When I lost no place, the music fades, and I've done all I can do.",
+    "words": [
+      {
+        "word": "When",
+        "start": 107.474,
+        "end": 107.595,
+        "score": 0.303
+      },
+      {
+        "word": "I",
+        "start": 107.815,
+        "end": 107.835,
+        "score": 0.0
+      },
+      {
+        "word": "lost",
+        "start": 107.855,
+        "end": 108.195,
+        "score": 0.916
+      },
+      {
+        "word": "no",
+        "start": 108.315,
+        "end": 108.476,
+        "score": 0.759
+      },
+      {
+        "word": "place,",
+        "start": 108.576,
+        "end": 109.276,
+        "score": 0.767
+      },
+      {
+        "word": "the",
+        "start": 109.797,
+        "end": 109.957,
+        "score": 0.349
+      },
+      {
+        "word": "music",
+        "start": 110.017,
+        "end": 110.638,
+        "score": 0.869
+      },
+      {
+        "word": "fades,",
+        "start": 110.778,
+        "end": 111.439,
+        "score": 0.605
+      },
+      {
+        "word": "and",
+        "start": 111.959,
+        "end": 112.059,
+        "score": 0.571
+      },
+      {
+        "word": "I've",
+        "start": 112.219,
+        "end": 112.3,
+        "score": 0.162
+      },
+      {
+        "word": "done",
+        "start": 112.34,
+        "end": 113.02,
+        "score": 0.656
+      },
+      {
+        "word": "all",
+        "start": 113.12,
+        "end": 113.401,
+        "score": 0.585
+      },
+      {
+        "word": "I",
+        "start": 113.421,
+        "end": 113.761,
+        "score": 0.893
+      },
+      {
+        "word": "can",
+        "start": 113.921,
+        "end": 114.782,
+        "score": 0.288
+      },
+      {
+        "word": "do.",
+        "start": 114.802,
+        "end": 115.543,
+        "score": 0.909
+      }
+    ]
+  },
+  {
+    "start": 116.367,
+    "end": 143.607,
+    "text": " Don't be afraid to walk alone Cause I'm on my way to you",
+    "words": [
+      {
+        "word": "Don't",
+        "start": 116.367,
+        "end": 116.667,
+        "score": 0.246
+      },
+      {
+        "word": "be",
+        "start": 116.768,
+        "end": 117.268,
+        "score": 0.841
+      },
+      {
+        "word": "afraid",
+        "start": 117.549,
+        "end": 117.969,
+        "score": 0.524
+      },
+      {
+        "word": "to",
+        "start": 118.67,
+        "end": 118.991,
+        "score": 0.927
+      },
+      {
+        "word": "walk",
+        "start": 119.051,
+        "end": 119.371,
+        "score": 0.716
+      },
+      {
+        "word": "alone",
+        "start": 119.832,
+        "end": 120.273,
+        "score": 0.713
+      },
+      {
+        "word": "Cause",
+        "start": 120.814,
+        "end": 121.014,
+        "score": 0.833
+      },
+      {
+        "word": "I'm",
+        "start": 121.094,
+        "end": 121.475,
+        "score": 0.688
+      },
+      {
+        "word": "on",
+        "start": 121.495,
+        "end": 121.655,
+        "score": 0.787
+      },
+      {
+        "word": "my",
+        "start": 121.715,
+        "end": 122.055,
+        "score": 0.938
+      },
+      {
+        "word": "way",
+        "start": 122.115,
+        "end": 122.937,
+        "score": 0.88
+      },
+      {
+        "word": "to",
+        "start": 122.957,
+        "end": 123.758,
+        "score": 0.872
+      },
+      {
+        "word": "you",
+        "start": 123.838,
+        "end": 143.607,
+        "score": 0.931
+      }
+    ]
+  },
+  {
+    "start": 152.243,
+    "end": 160.701,
+    "text": " Don't be afraid to walk alone Cause I'm on my way to you",
+    "words": [
+      {
+        "word": "Don't",
+        "start": 152.243,
+        "end": 152.625,
+        "score": 0.148
+      },
+      {
+        "word": "be",
+        "start": 152.645,
+        "end": 153.187,
+        "score": 0.858
+      },
+      {
+        "word": "afraid",
+        "start": 153.408,
+        "end": 154.031,
+        "score": 0.702
+      },
+      {
+        "word": "to",
+        "start": 154.573,
+        "end": 154.855,
+        "score": 0.935
+      },
+      {
+        "word": "walk",
+        "start": 155.076,
+        "end": 155.699,
+        "score": 0.288
+      },
+      {
+        "word": "alone",
+        "start": 155.719,
+        "end": 156.241,
+        "score": 0.9
+      },
+      {
+        "word": "Cause",
+        "start": 156.703,
+        "end": 156.924,
+        "score": 0.837
+      },
+      {
+        "word": "I'm",
+        "start": 157.025,
+        "end": 157.145,
+        "score": 0.533
+      },
+      {
+        "word": "on",
+        "start": 157.386,
+        "end": 157.547,
+        "score": 0.933
+      },
+      {
+        "word": "my",
+        "start": 157.647,
+        "end": 157.949,
+        "score": 0.971
+      },
+      {
+        "word": "way",
+        "start": 158.009,
+        "end": 158.853,
+        "score": 0.965
+      },
+      {
+        "word": "to",
+        "start": 158.873,
+        "end": 159.817,
+        "score": 0.904
+      },
+      {
+        "word": "you",
+        "start": 160.038,
+        "end": 160.701,
+        "score": 0.909
+      }
+    ]
+  }
+]

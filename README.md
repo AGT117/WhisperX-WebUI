@@ -4,6 +4,11 @@
 
 它集成了 **人声分离（BS-RoFormer）**、**音素级强制对齐** 和 **说话人聚类（Pyannote）** 技术。通过直观的 `Gradio` 网页界面，你可以轻松地批量处理音频/视频文件，并导出 JSON 数据与 SRT 字幕。
 
+## 界面效果展示：
+
+![alt text](image.png)
+
+
 ## ✨ 主要特性
 
 - **🚀 核心转录**：基于 `whisperx` 的 ASR，支持音素级强制对齐（Phoneme-level Alignment），时间轴更精准。
@@ -30,7 +35,7 @@
 ### 1. 克隆项目
 
 ```powershell
-git clone [https://github.com/AGT117/WhisperX-WebUI.git](https://github.com/AGT117/WhisperX-WebUI.git)
+git clone https://github.com/AGT117/WhisperX-WebUI.git
 cd WhisperX-WebUI
 
 ```
@@ -75,13 +80,7 @@ HF_TOKEN=hf_你的Token填在这里
 ```
 
 
-*(注：你需要去 Hugging Face 官网接受:
-
-关键报错库：pyannote/speaker-diarization-community-1
-核心模型库：pyannote/speaker-diarization-3.1
-分割模型库：pyannote/segmentation-3.0 
-
-的用户协议)*
+*(注：你需要去 Hugging Face 官网接受:关键报错库：pyannote/speaker-diarization-community-1核心模型库：pyannote/speaker-diarization-3.1分割模型库：pyannote/segmentation-3.0 的用户协议)*
 
 ### 5. 启动应用
 
@@ -148,6 +147,6 @@ WhisperX-WebUI/
 
 **Q: 程序启动时卡住不动？**
 
-> **A:** 首次运行时程序需要下载 Whisper 和 Pyannote 模型（数 GB），请耐心等待下载完成。
+> **A:** 首次运行时程序需要下载 Whisper 和 Pyannote 模型，请耐心等待下载完成。
 
 

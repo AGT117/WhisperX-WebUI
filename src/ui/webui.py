@@ -127,8 +127,8 @@ def process_batch_task(
 
 def create_ui():
     """Gradio 界面构建"""
-    with gr.Blocks(title="WhisperX WebUI By AGT") as app:
-        gr.Markdown("## WhisperX WebUI By AGT")
+    with gr.Blocks(title="WhisperX WebUI") as app:
+        gr.Markdown("## WhisperX WebUI")
         
         if not HF_TOKEN:
             gr.Warning("警告: 未检测到 HF_TOKEN，说话人分离功能将不可用。")
