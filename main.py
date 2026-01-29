@@ -7,6 +7,10 @@ import config.settings as settings
 # --- 1. 噪音抑制 ---
 def suppress_noise():
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    
+    # 添加针对 torchcodec 的警告屏蔽
+    warnings.filterwarnings("ignore", category=UserWarning, module="pyannote.audio.core.io")
+    
     warnings.filterwarnings("ignore", message=".*torchaudio._backend.*") 
     warnings.filterwarnings("ignore", message=".*AudioMetaData.*")
     warnings.filterwarnings("ignore", message=".*In 2.9, this function.*")
@@ -14,7 +18,7 @@ def suppress_noise():
     warnings.filterwarnings("ignore", message=".*TensorFloat-32.*")
     warnings.filterwarnings("ignore", message=".*Lightning automatically upgraded.*")
     warnings.filterwarnings("ignore", message=".*The 'use_auth_token' argument.*")
-    
+
     logging.getLogger("whisperx").setLevel(logging.ERROR)
     logging.getLogger("speechbrain").setLevel(logging.ERROR)
     logging.getLogger("pyannote").setLevel(logging.ERROR)
@@ -34,9 +38,9 @@ except ImportError:
 
 from dotenv import load_dotenv
 
-# --- 3. 核心补丁 ---
+# --- 3. 核心补丁 (已移除冗余 Print) ---
 def apply_compatibility_patches():
-    print("正在注入系统底层补丁 (VAD + Diarization)...")
+    # print("正在注入系统底层补丁 (VAD + Diarization)...")
     load_dotenv()
     
     # --- Patch A: PyTorch 权重检查 ---
@@ -73,7 +77,7 @@ def apply_compatibility_patches():
         pyannote.audio.core.inference.Inference.__init__ = _inf_init_patch
     except: pass
 
-    # --- Patch D: Pyannote Pipeline 补丁 (修复说话人聚类) 关键新增 ---
+    # --- Patch D: Pyannote Pipeline 补丁 (修复说话人聚类) ---
     try:
         from pyannote.audio import Pipeline
         _orig_from_pretrained = Pipeline.from_pretrained
@@ -85,8 +89,9 @@ def apply_compatibility_patches():
             return _orig_from_pretrained.__func__(cls, checkpoint_path, **new_kwargs)
             
         Pipeline.from_pretrained = _from_pretrained_patch
-        print("已修复 Diarization Pipeline 兼容性")
+        # print("已修复 Diarization Pipeline 兼容性")
     except Exception as e:
+        # 只有真正出错时才打印，保持静默
         print(f"Pipeline 补丁注入失败: {e}")
 
     # --- Patch E: 回退实现 AudioDecoder / AudioSamples / AudioStreamMetadata ---
@@ -114,7 +119,6 @@ def apply_compatibility_patches():
                         if isinstance(source, (str, Path)):
                             waveform, sr = torchaudio.load(str(source))
                         elif isinstance(source, IOBase):
-                            # torchaudio may accept file-like objects depending on backend
                             waveform, sr = torchaudio.load(source)
                         else:
                             raise ValueError('Unsupported audio source for fallback AudioDecoder')
@@ -134,13 +138,13 @@ def apply_compatibility_patches():
                 py_io.AudioDecoder = AudioDecoder
                 py_io.AudioSamples = AudioSamples
                 py_io.AudioStreamMetadata = AudioStreamMetadata
-                print('已注入 pyannote AudioDecoder 回退实现 (使用 torchaudio)')
+                # print('已注入 pyannote AudioDecoder 回退实现 (使用 torchaudio)')
             except Exception as inner_e:
                 print('注入 AudioDecoder 回退失败:', inner_e)
     except Exception:
         pass
 
-    print("系统补丁应用完成")
+    # print("系统补丁应用完成")
 
 apply_compatibility_patches()
 

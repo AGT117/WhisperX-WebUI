@@ -1,11 +1,21 @@
 --extra-index-url https://download.pytorch.org/whl/cu128
 
-# 基础框架 (强制对齐官方 CUDA 12.8 推理要求)
+# 1. 基础框架
 torch==2.8.0+cu128
 torchvision==0.23.0+cu128
 torchaudio==2.8.0+cu128
 
-# UI 与后端框架
+# 2. 关键依赖
+transformers
+tokenizers
+accelerate
+audio-separator[gpu]>=0.17.0
+pyannote.audio>=3.1.1
+faster-whisper>=1.1.0
+ctranslate2>=4.5.0
+nltk
+
+# 3. 其他工具
 gradio>=4.0.0
 python-dotenv
 pandas>=2.0.0
@@ -13,9 +23,5 @@ huggingface_hub>=0.20.0
 omegaconf>=2.3.0
 ffmpeg-python
 
-# 音频处理与模型推理
-audio-separator[gpu]>=0.17.0
-pyannote.audio>=3.1.1
-faster-whisper>=1.1.0
-ctranslate2>=4.5.0
-nltk
+# 4. WhisperX
+git+https://github.com/m-bain/whisperX.git

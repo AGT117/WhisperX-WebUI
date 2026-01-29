@@ -49,7 +49,6 @@ cd WhisperX-WebUI
 # Windows PowerShell
 py -3.11 -m venv .whisperx_webui
 .\.whisperx_webui\Scripts\Activate.ps1
-python.exe -m pip install --upgrade pip
 
 # Linux / Mac
 python3 -m venv .whisperx_webui
@@ -61,9 +60,6 @@ source .whisperx_webui/bin/activate
 
 ```powershell
 python -m pip install -r requirements.txt
-pip install git+https://github.com/m-bain/whisperX.git --no-deps
-pip install transformers
-pip install tokenizers accelerate
 
 ```
 
@@ -130,24 +126,5 @@ WhisperX-WebUI/
 
 * **`BATCH_SIZE`**: 转录时的批处理大小，显存越小该值应越小。
 
----
-
-## 📝 常见问题 (FAQ)
-
-**Q: 开启“说话人聚类”后报错？**
-
-> **A:** 请检查：1. `.env` 文件中是否正确填入了 `HF_TOKEN`；2. 网络是否能连接 Hugging Face；3. 账号是否已在 Hugging Face 上签署了 `pyannote` 的使用协议。
-
-**Q: 显存不足 (CUDA Out of Memory)？**
-
-> **A:** 请在 WebUI 的“推理参数”中，将 **计算类型** 改为 `int8`，并尝试减小 **Batch Size**。
-
-**Q: 如何处理带背景音乐的视频？**
-
-> **A:** 请在界面勾选 **“启用人声分离预处理 (BS-RoFormer)”**。这会自动先提取人声再进行识别，虽然会增加耗时，但能显著提升准确率。
-
-**Q: 程序启动时卡住不动？**
-
-> **A:** 首次运行时程序需要下载 Whisper 和 Pyannote 模型，请耐心等待下载完成。
 
 
