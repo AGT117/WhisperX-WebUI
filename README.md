@@ -109,9 +109,9 @@ WhisperX-WebUI/
 │   │   └── utils.py         # 文本格式化与 SRT 导出工具
 │   └── ui/
 │       └── webui.py         # Gradio 界面逻辑
-├── models/                  # 模型下载目录 (自动生成)
+├── models/                  # 模型下载目录
 └── outputs/                 # 默认结果输出目录
-
+└── demo/                    # 项目输出展示目录
 ```
 
 ---
