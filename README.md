@@ -4,10 +4,11 @@
 
 它集成了 **人声分离（BS-RoFormer）**、**音素级强制对齐** 和 **说话人聚类（Pyannote）** 技术。通过直观的 `Gradio` 网页界面，你可以轻松地批量处理音频/视频文件，并导出 JSON 数据与 SRT 字幕。
 
-## 界面效果展示：
+## ✨ 界面效果展示：
 
-![alt text](image.png)
+![alt text](image-1.png)
 
+运行效果存放在demo文件夹中
 
 ## ✨ 主要特性
 
@@ -51,8 +52,8 @@ py -3.11 -m venv .whisperx_webui
 python.exe -m pip install --upgrade pip
 
 # Linux / Mac
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .whisperx_webui
+source .whisperx_webui/bin/activate
 
 ```
 
