@@ -3,23 +3,28 @@ import time
 import os
 import sys
 import subprocess
-import tkinter as tk
-from tkinter import filedialog
+import threading
+import logging
 import gradio as gr
 from pathlib import Path
 from src.core.engine import FullPipelineEngine
 from src.core.utils import generate_srt, format_transcript_for_display
 from config.settings import OUTPUT_DIR, HF_TOKEN
 
+logger = logging.getLogger(__name__)
+
 # 引擎实例化
 engine = FullPipelineEngine()
+# 并发保护锁：防止多个 Gradio 请求同时操作模型状态
+_engine_lock = threading.Lock()
 
 def process_batch_task(
     file_paths, model_size, lang, 
     enable_diar, min_spk, max_spk, 
     vad_onset, initial_prompt, compute_type, enable_demucs, 
     release_memory, export_srt,
-    custom_output_path
+    custom_output_path,
+    hallucination_filter, hallucination_threshold
 ):
     """WebUI 批处理回调函数"""
     if not file_paths:
@@ -39,7 +44,7 @@ def process_batch_task(
         # 确保目标目录存在，如果不存在则自动创建
         if not save_dir.exists():
             save_dir.mkdir(parents=True, exist_ok=True)
-            print(f"已自动创建输出目录: {save_dir}")
+            logger.info(f"已自动创建输出目录: {save_dir}")
     except Exception as e:
         yield f"错误: 自定义路径无效 ({str(e)})，请检查路径格式。"
         return
@@ -66,21 +71,25 @@ def process_batch_task(
         start_time = time.time()
         
         try:
-            # 执行核心管道
-            segments, status = engine.run_pipeline(
-                audio_path=file_path, 
-                model_size=model_size, 
-                lang=lang, 
-                enable_diarization=enable_diar, 
-                min_speakers=min_spk, 
-                max_speakers=max_spk,
-                vad_onset=vad_onset,        
-                initial_prompt=initial_prompt,
-                compute_type=compute_type,
-                enable_demucs=enable_demucs 
-            )
+            # 执行核心管道（加锁保护）
+            with _engine_lock:
+                segments, status = engine.run_pipeline(
+                    audio_path=file_path, 
+                    model_size=model_size, 
+                    lang=lang, 
+                    enable_diarization=enable_diar, 
+                    min_speakers=min_spk, 
+                    max_speakers=max_spk,
+                    vad_onset=vad_onset,        
+                    initial_prompt=initial_prompt,
+                    compute_type=compute_type,
+                    enable_demucs=enable_demucs,
+                    hallucination_filter=hallucination_filter,
+                    hallucination_threshold=hallucination_threshold,
+                )
 
-            if "Error" in status or "Failed" in status:
+            # 结构化错误检测：通过状态码前缀判断，而非字符串包含
+            if status != "Success":
                 raise RuntimeError(status)
 
             # 结果持久化
@@ -115,12 +124,13 @@ def process_batch_task(
                 f"{'='*30}\n\n"
             )
             log_buffer = error_log + log_buffer
-            print(f"Task Failed: {e}")
+            logger.error(f"Task Failed: {e}")
             yield log_buffer
 
     if release_memory:
         yield "正在执行资源释放...\n" + log_buffer
-        engine.unload_all()
+        with _engine_lock:
+            engine.unload_all()
         yield "所有任务执行完毕，显存已释放。\n" + log_buffer
     else:
         yield "所有任务执行完毕。\n" + log_buffer
@@ -187,6 +197,19 @@ def create_ui():
                             info="语音活动检测的灵敏度。数值越高越严格（减少幻觉），数值越低越灵敏（保留更多细节）。默认 0.35。"
                         )
                         
+                        gr.Markdown("---")
+                        gr.Markdown("**幻觉过滤 (Hallucination Filter)**")
+                        hallucination_filter_cb = gr.Checkbox(
+                            label="启用幻觉过滤",
+                            value=True,
+                            info="自动识别并移除低置信度的幻觉文本（如纯音乐段被错误转录为文字）。基于词级置信度、已知幻觉模式和时间异常三重检测。"
+                        )
+                        hallucination_threshold_slider = gr.Slider(
+                            minimum=0.1, maximum=0.8, value=0.35, step=0.05,
+                            label="置信度阈值",
+                            info="平均词置信度低于此值且零分词占比过高的段落将被移除。越高越激进（过滤更多），越低越保守。推荐 0.3-0.4。"
+                        )
+                        
                     with gr.TabItem("说话人区分"):
                         enable_diar = gr.Checkbox(
                             label="启用说话人聚类 (Diarization)", 
@@ -231,9 +254,12 @@ def create_ui():
                     # 打开按钮 (scale=1)
                     btn_open = gr.Button("打开", scale=1, variant="secondary")
 
-                # 1. 浏览文件夹逻辑 (调用 Tkinter)
+                # 1. 浏览文件夹逻辑 (调用 Tkinter，带安全回退)
                 def browse_folder_action():
                     try:
+                        import tkinter as tk
+                        from tkinter import filedialog
+                        
                         # 创建一个隐藏的 Tk 窗口作为根
                         root = tk.Tk()
                         root.withdraw() # 隐藏主窗口
@@ -247,8 +273,9 @@ def create_ui():
                             return str(Path(selected_path))
                         else:
                             return gr.update() # 如果取消，保持原值
-                    except Exception as e:
-                        print(f"Tkinter dialog error: {e}")
+                    except (ImportError, Exception) as e:
+                        # Tkinter 不可用时（无头服务器 / Docker / WSL）优雅降级
+                        logger.warning(f"文件夹选择器不可用: {e}。请直接在输出目录框中手动输入路径。")
                         return gr.update()
 
                 # 2. 打开文件夹逻辑
@@ -280,7 +307,8 @@ def create_ui():
                 vad_onset_slider, prompt_input, compute_type_sel, 
                 enable_demucs, 
                 release_mem, export_srt,
-                output_dir_input # 将选择的路径传给后端
+                output_dir_input, # 将选择的路径传给后端
+                hallucination_filter_cb, hallucination_threshold_slider
             ], 
             outputs=[text_out], 
             show_progress="minimal" 

@@ -4,6 +4,8 @@ import warnings
 import logging
 import config.settings as settings
 
+logger = logging.getLogger(__name__)
+
 # --- 1. 噪音抑制 ---
 def suppress_noise():
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -49,8 +51,12 @@ def apply_compatibility_patches():
         torch.serialization.add_safe_globals([DictConfig, ListConfig])
     except ImportError: pass
 
+    # 强制注入 weights_only=False，兼容旧模型加载
     _original_load = torch.load
-    torch.load = lambda *args, **kwargs: _original_load(*args, **{**kwargs, 'weights_only': False}) if 'weights_only' in kwargs else _original_load(*args, **kwargs)
+    def _patched_torch_load(*args, **kwargs):
+        kwargs.setdefault('weights_only', False)
+        return _original_load(*args, **kwargs)
+    torch.load = _patched_torch_load
 
     # --- 通用参数转换逻辑 ---
     def _shim_kwargs(kwargs):
@@ -60,14 +66,17 @@ def apply_compatibility_patches():
                 kwargs['token'] = token_val
         return kwargs
 
-    # --- Patch B: HuggingFace 下载补丁 ---
-    if hasattr(huggingface_hub, 'hf_hub_download'):
-        _orig_hf = huggingface_hub.hf_hub_download
-        huggingface_hub.hf_hub_download = lambda *a, **k: _orig_hf(*a, **_shim_kwargs(k))
-    
-    if hasattr(huggingface_hub, 'snapshot_download'):
-        _orig_snap = huggingface_hub.snapshot_download
-        huggingface_hub.snapshot_download = lambda *a, **k: _orig_snap(*a, **_shim_kwargs(k))
+    # --- Patch B: HuggingFace 下载补丁 (仅在旧版本需要) ---
+    _hf_version = getattr(huggingface_hub, '__version__', '0.0.0')
+    _hf_needs_shim = tuple(int(x) for x in _hf_version.split('.')[:2]) < (0, 23)
+    if _hf_needs_shim:
+        if hasattr(huggingface_hub, 'hf_hub_download'):
+            _orig_hf = huggingface_hub.hf_hub_download
+            huggingface_hub.hf_hub_download = lambda *a, **k: _orig_hf(*a, **_shim_kwargs(k))
+        
+        if hasattr(huggingface_hub, 'snapshot_download'):
+            _orig_snap = huggingface_hub.snapshot_download
+            huggingface_hub.snapshot_download = lambda *a, **k: _orig_snap(*a, **_shim_kwargs(k))
 
     # --- Patch C: Pyannote Inference 补丁 (修复 VAD) ---
     try:
@@ -75,7 +84,8 @@ def apply_compatibility_patches():
         def _inf_init_patch(self, *args, **kwargs):
             return _orig_inf_init(self, *args, **_shim_kwargs(kwargs))
         pyannote.audio.core.inference.Inference.__init__ = _inf_init_patch
-    except: pass
+    except Exception:
+        pass
 
     # --- Patch D: Pyannote Pipeline 补丁 (修复说话人聚类) ---
     try:
@@ -91,8 +101,7 @@ def apply_compatibility_patches():
         Pipeline.from_pretrained = _from_pretrained_patch
         # print("已修复 Diarization Pipeline 兼容性")
     except Exception as e:
-        # 只有真正出错时才打印，保持静默
-        print(f"Pipeline 补丁注入失败: {e}")
+        logger.warning(f"Pipeline 补丁注入失败: {e}")
 
     # --- Patch E: 回退实现 AudioDecoder / AudioSamples / AudioStreamMetadata ---
     try:
@@ -140,7 +149,7 @@ def apply_compatibility_patches():
                 py_io.AudioStreamMetadata = AudioStreamMetadata
                 # print('已注入 pyannote AudioDecoder 回退实现 (使用 torchaudio)')
             except Exception as inner_e:
-                print('注入 AudioDecoder 回退失败:', inner_e)
+                logger.warning(f'注入 AudioDecoder 回退失败: {inner_e}')
     except Exception:
         pass
 
@@ -152,8 +161,14 @@ apply_compatibility_patches()
 from src.ui.webui import create_ui
 
 if __name__ == "__main__":
-    print(f"\n服务启动序列初始化...")
-    print(f"根目录: {settings.ROOT_DIR}")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S"
+    )
+    logger.info(f"服务启动序列初始化...")
+    logger.info(f"根目录: {settings.ROOT_DIR}")
+    logger.info(f"设备: {settings.DEVICE} | 精度: {settings.COMPUTE_TYPE} | 批大小: {settings.BATCH_SIZE}")
     app = create_ui()
-    print("服务就绪，正在启动 WebUI...\n")
+    logger.info("服务就绪，正在启动 WebUI...")
     app.launch(server_name="127.0.0.1", server_port=7860, inbrowser=True, show_error=True)

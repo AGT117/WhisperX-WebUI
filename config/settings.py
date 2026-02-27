@@ -1,6 +1,9 @@
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # 加载环境变量
 load_dotenv()
@@ -35,12 +38,24 @@ os.environ["XDG_CACHE_HOME"] = str(CACHE_HOME)
 
 # --- 全局参数 ---
 HF_TOKEN = os.getenv("HF_TOKEN")
-DEVICE = "cuda"
+
+# 设备自动检测：优先使用 CUDA，无 GPU 时回退到 CPU
+def _detect_device() -> str:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+    except ImportError:
+        pass
+    logger.warning("未检测到可用的 CUDA 设备，将使用 CPU 模式（速度极慢）")
+    return "cpu"
+
+DEVICE = os.getenv("DEVICE", _detect_device())
 
 # 计算精度配置
-# 8GB VRAM 建议 float16；若显存不足可切换至 int8
-COMPUTE_TYPE = "float16" 
+# 8GB VRAM 建议 float16；若显存不足可切换至 int8；CPU 模式使用 float32
+COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "float16" if DEVICE == "cuda" else "float32")
 
 # 批处理大小
 # 根据显存容量调整，8GB VRAM 建议值为 4
-BATCH_SIZE = 4
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "4"))
