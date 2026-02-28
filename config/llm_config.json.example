@@ -1,0 +1,17 @@
+{
+    "_comment": "LLM API 配置文件 — 填写后即可在 WebUI 中启用 LLM 智能断句/翻译功能",
+
+    "api_base": "https://api.openai.com/v1",
+    "api_key": "",
+    "model": "gpt-4o-mini",
+    "max_context_tokens": 4096,
+    "temperature": 0.3,
+
+    "_help": {
+        "api_base": "OpenAI 兼容 API 地址。DeepSeek: https://api.deepseek.com/v1 | Ollama 本地: http://localhost:11434/v1",
+        "api_key": "API 密钥。本地 Ollama 可填任意非空值如 ollama",
+        "model": "模型 ID。例: gpt-4o-mini / deepseek-chat / qwen2.5:7b",
+        "max_context_tokens": "模型上下文窗口大小。gpt-4o-mini=128000, deepseek-chat=64000, 本地小模型=4096",
+        "temperature": "生成温度 0.0-1.0，越低越确定性。断句/翻译建议 0.2-0.4"
+    }
+}

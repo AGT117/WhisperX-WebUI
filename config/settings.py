@@ -59,3 +59,33 @@ COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "float16" if DEVICE == "cuda" else "flo
 # 批处理大小
 # 根据显存容量调整，8GB VRAM 建议值为 4
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "4"))
+
+# --- LLM 配置 (从 config/llm_config.json 读取) ---
+def _load_llm_config() -> dict:
+    """读取 LLM 配置文件，若不存在或格式错误则返回空配置"""
+    import json
+    config_path = ROOT_DIR / "config" / "llm_config.json"
+    if not config_path.exists():
+        logger.warning(f"LLM 配置文件不存在: {config_path}")
+        return {}
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        # 过滤注释字段
+        return {k: v for k, v in cfg.items() if not k.startswith("_")}
+    except Exception as e:
+        logger.error(f"LLM 配置文件解析失败: {e}")
+        return {}
+
+LLM_CONFIG = _load_llm_config()
+
+# 便捷访问
+LLM_API_BASE = LLM_CONFIG.get("api_base", "")
+LLM_API_KEY = LLM_CONFIG.get("api_key", "")
+LLM_MODEL = LLM_CONFIG.get("model", "")
+LLM_MAX_TOKENS = int(LLM_CONFIG.get("max_context_tokens", 4096))
+LLM_TEMPERATURE = float(LLM_CONFIG.get("temperature", 0.3))
+
+def is_llm_configured() -> bool:
+    """检查 LLM API 是否已完整配置"""
+    return bool(LLM_API_BASE and LLM_API_KEY and LLM_MODEL)

@@ -1,30 +1,32 @@
-# Python 缓存 (必须忽略！)
+# Python 缓存
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# 环境变量与密钥 (安全第一！)
+# 环境变量与密钥
 .env
 
-# IDE 配置文件 (忽略掉)
+# IDE 配置文件
 .vscode/
 .idea/
 
-# 项目输出目录 (忽略掉)
+# 本地文件
+config/llm_config.json
+
+# 项目输出目录
 outputs/*
 !outputs/.gitkeep
 models/*
 !models/.gitkeep
 
-# 本地构建测试 (忽略掉)
-tests/
+# 本地构建和测试
 start.bat
 build_exe.py
 launcher.py
 dist/
 
-# 虚拟环境 (如果你的环境叫这些名字)
+# 虚拟环境
 venv/
 .venv/
 env/

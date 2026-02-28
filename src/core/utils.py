@@ -502,6 +502,10 @@ def generate_srt(segments: list) -> str:
             end = seconds_to_srt_timestamp(sub_seg['end'])
             speaker = sub_seg.get('speaker', '')
             if speaker: text = f"[{speaker}] {text}"
+            # 双语字幕支持：若包含翻译，在原文下方插入译文
+            translation = sub_seg.get('translation', '').strip()
+            if translation:
+                text = f"{text}\n{translation}"
             block = f"{counter}\n{start} --> {end}\n{text}\n"
             srt_content.append(block)
             counter += 1
@@ -517,5 +521,9 @@ def format_transcript_for_display(segments: list) -> str:
             speaker = sub_seg.get('speaker', 'Unknown')
             text = sub_seg['text'].strip()
             if text:
-                lines.append(f"[{start}s -> {end}s] [{speaker}]: {text}")
+                line = f"[{start}s -> {end}s] [{speaker}]: {text}"
+                translation = sub_seg.get('translation', '').strip()
+                if translation:
+                    line += f"  →  {translation}"
+                lines.append(line)
     return "\n".join(lines)

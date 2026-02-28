@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple, Any
 from config.settings import DEVICE, COMPUTE_TYPE, BATCH_SIZE, HF_TOKEN, AUDIO_SEPARATOR_HOME
+from config.settings import LLM_API_BASE, LLM_API_KEY, LLM_MODEL, LLM_MAX_TOKENS, LLM_TEMPERATURE, is_llm_configured
 
 import torch
 import pandas as pd
@@ -17,6 +18,7 @@ from whisperx.diarize import assign_word_speakers
 from audio_separator.separator import Separator
 
 from src.core.utils import filter_hallucinated_segments
+from src.core.llm_processor import LLMProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +140,13 @@ class FullPipelineEngine:
         initial_prompt: Optional[str] = None,
         compute_type: str = "float16",
         enable_demucs: bool = False,
-        hallucination_filter: bool = True,
+        # 幻觉过滤模式: "code" = 代码规则 | "llm" = LLM 判断 | "off" = 关闭
+        hallucination_mode: str = "code",
         hallucination_threshold: float = 0.35,
+        # LLM 功能参数
+        llm_enabled: bool = False,
+        llm_mode: str = "segmentation",
+        llm_target_lang: Optional[str] = None,
     ) -> Tuple[Any, str]:
         
         temp_files_to_clean = []
@@ -221,13 +228,65 @@ class FullPipelineEngine:
                 self._clear_gpu()
             logger.info("转录与对齐完成")
 
-            # 3.5 幻觉过滤阶段 (Hallucination Filtering)
-            if hallucination_filter:
-                logger.info("2.5 执行幻觉过滤...")
+            # 3.5 幻觉过滤阶段
+            if hallucination_mode == "code":
+                logger.info("2.5 执行代码规则幻觉过滤...")
                 result["segments"] = filter_hallucinated_segments(
                     result["segments"],
                     confidence_threshold=hallucination_threshold,
                 )
+            elif hallucination_mode == "llm":
+                if is_llm_configured():
+                    logger.info("2.5 执行 LLM 幻觉过滤...")
+                    try:
+                        llm = LLMProcessor(
+                            api_base=LLM_API_BASE,
+                            api_key=LLM_API_KEY,
+                            model=LLM_MODEL,
+                            max_context_tokens=LLM_MAX_TOKENS,
+                            temperature=LLM_TEMPERATURE,
+                        )
+                        result["segments"] = llm.filter_hallucinations(
+                            result["segments"]
+                        )
+                        logger.info("LLM 幻觉过滤完成")
+                    except Exception as e:
+                        logger.error(f"LLM 幻觉过滤失败，回退到代码规则: {e}")
+                        result["segments"] = filter_hallucinated_segments(
+                            result["segments"],
+                            confidence_threshold=hallucination_threshold,
+                        )
+                else:
+                    logger.warning("LLM 未配置，回退到代码规则幻觉过滤")
+                    result["segments"] = filter_hallucinated_segments(
+                        result["segments"],
+                        confidence_threshold=hallucination_threshold,
+                    )
+            # hallucination_mode == "off" → 不做任何过滤
+
+            # 3.6 LLM 智能断句/翻译（可选）
+            if llm_enabled and is_llm_configured():
+                logger.info(f"3. LLM 智能处理 ({LLM_MODEL} | {llm_mode})...")
+                try:
+                    llm = LLMProcessor(
+                        api_base=LLM_API_BASE,
+                        api_key=LLM_API_KEY,
+                        model=LLM_MODEL,
+                        max_context_tokens=LLM_MAX_TOKENS,
+                        temperature=LLM_TEMPERATURE,
+                    )
+                    result["segments"] = llm.process_segments(
+                        result["segments"],
+                        mode=llm_mode,
+                        target_lang=llm_target_lang,
+                    )
+                    logger.info("LLM 处理完成")
+                except ImportError:
+                    logger.warning("openai 库未安装，跳过 LLM 处理")
+                except Exception as e:
+                    logger.error(f"LLM 处理失败，使用原始断句: {e}")
+            elif llm_enabled and not is_llm_configured():
+                logger.warning("LLM 已启用但未配置 API，请编辑 config/llm_config.json")
 
             # 4. 说话人区分阶段 (Diarization)
             if enable_diarization:

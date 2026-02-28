@@ -9,7 +9,7 @@ import gradio as gr
 from pathlib import Path
 from src.core.engine import FullPipelineEngine
 from src.core.utils import generate_srt, format_transcript_for_display
-from config.settings import OUTPUT_DIR, HF_TOKEN
+from config.settings import OUTPUT_DIR, HF_TOKEN, is_llm_configured, LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,8 @@ def process_batch_task(
     vad_onset, initial_prompt, compute_type, enable_demucs, 
     release_memory, export_srt,
     custom_output_path,
-    hallucination_filter, hallucination_threshold
+    hallucination_mode, hallucination_threshold,
+    llm_enabled, llm_mode, llm_target_lang,
 ):
     """WebUI 批处理回调函数"""
     if not file_paths:
@@ -57,6 +58,10 @@ def process_batch_task(
     
     initial_prompt = initial_prompt.strip() if initial_prompt else None
 
+    # 映射中文 Radio 标签 → 内部代码
+    _hall_map = {"代码规则过滤": "code", "LLM 智能过滤": "llm", "关闭": "off"}
+    hallucination_mode = _hall_map.get(hallucination_mode, "code")
+
     # 批处理循环
     for i, file_path in enumerate(file_paths):
         current_index = i + 1
@@ -84,8 +89,11 @@ def process_batch_task(
                     initial_prompt=initial_prompt,
                     compute_type=compute_type,
                     enable_demucs=enable_demucs,
-                    hallucination_filter=hallucination_filter,
+                    hallucination_mode=hallucination_mode or "code",
                     hallucination_threshold=hallucination_threshold,
+                    llm_enabled=llm_enabled,
+                    llm_mode=llm_mode if llm_mode else "segmentation",
+                    llm_target_lang=llm_target_lang if llm_target_lang else None,
                 )
 
             # 结构化错误检测：通过状态码前缀判断，而非字符串包含
@@ -199,15 +207,16 @@ def create_ui():
                         
                         gr.Markdown("---")
                         gr.Markdown("**幻觉过滤 (Hallucination Filter)**")
-                        hallucination_filter_cb = gr.Checkbox(
-                            label="启用幻觉过滤",
-                            value=True,
-                            info="自动识别并移除低置信度的幻觉文本（如纯音乐段被错误转录为文字）。基于词级置信度、已知幻觉模式和时间异常三重检测。"
+                        hallucination_mode_radio = gr.Radio(
+                            ["代码规则过滤", "LLM 智能过滤", "关闭"],
+                            value="代码规则过滤",
+                            label="幻觉过滤模式",
+                            info="代码规则: 基于置信度+模式匹配+时间异常(0 API 费用) | LLM 智能: 由大模型判断(需配置 llm_config.json) | 关闭: 不过滤"
                         )
                         hallucination_threshold_slider = gr.Slider(
                             minimum=0.1, maximum=0.8, value=0.35, step=0.05,
-                            label="置信度阈值",
-                            info="平均词置信度低于此值且零分词占比过高的段落将被移除。越高越激进（过滤更多），越低越保守。推荐 0.3-0.4。"
+                            label="置信度阈值 (仅代码规则模式)",
+                            info="平均词置信度低于此值且零分词占比过高的段落将被移除。推荐 0.3-0.4。"
                         )
                         
                     with gr.TabItem("说话人区分"):
@@ -219,6 +228,34 @@ def create_ui():
                         with gr.Row():
                             min_spk = gr.Number(label="最小说话人数", value=1, precision=0)
                             max_spk = gr.Number(label="最大说话人数", value=5, precision=0)
+
+                    with gr.TabItem("LLM 智能处理"):
+                        _llm_status = f"✅ 已配置 ({LLM_MODEL})" if is_llm_configured() else "❌ 未配置"
+                        gr.Markdown(
+                            f"**API 状态: {_llm_status}**\n\n"
+                            "API 配置请编辑 `config/llm_config.json` 文件，修改后重启程序生效。\n"
+                            "支持 OpenAI / DeepSeek / Ollama 等 OpenAI 兼容接口。"
+                        )
+                        llm_enabled_cb = gr.Checkbox(
+                            label="启用 LLM 后处理",
+                            value=False,
+                            info="在 ASR 识别后调用 LLM 进行智能断句与翻译。需先配置 llm_config.json。",
+                            interactive=is_llm_configured(),
+                        )
+                        gr.Markdown("---")
+                        llm_mode_sel = gr.Radio(
+                            ["segmentation", "translation", "both"],
+                            value="segmentation",
+                            label="处理模式",
+                            info="segmentation: 仅智能断句 | translation: 仅翻译 | both: 断句 + 翻译（双语字幕）",
+                        )
+                        llm_target_lang_input = gr.Textbox(
+                            label="翻译目标语言",
+                            value="简体中文",
+                            placeholder="English / 简体中文 / 日本語",
+                            info="仅在模式包含翻译时生效。请使用自然语言描述目标语种。",
+                            max_lines=1,
+                        )
 
                 with gr.Accordion("输出与资源管理", open=False):
                     export_srt = gr.Checkbox(label="同步导出 SRT 字幕文件", value=True)
@@ -307,8 +344,9 @@ def create_ui():
                 vad_onset_slider, prompt_input, compute_type_sel, 
                 enable_demucs, 
                 release_mem, export_srt,
-                output_dir_input, # 将选择的路径传给后端
-                hallucination_filter_cb, hallucination_threshold_slider
+                output_dir_input,
+                hallucination_mode_radio, hallucination_threshold_slider,
+                llm_enabled_cb, llm_mode_sel, llm_target_lang_input,
             ], 
             outputs=[text_out], 
             show_progress="minimal" 
