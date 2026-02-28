@@ -77,7 +77,7 @@ HF_TOKEN=hf_你的Token
 
 ### 5. 配置 LLM（可选）
 
-编辑 `config/llm_config.json`，填入 API 信息：
+复制 `config/llm_config.json.example` 为 `config/llm_config.json` 然后编辑填入 API 信息：
 
 ```json
 {
