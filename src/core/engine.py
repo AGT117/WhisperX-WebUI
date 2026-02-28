@@ -6,7 +6,7 @@ import tempfile
 import traceback
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Callable
 from config.settings import DEVICE, COMPUTE_TYPE, BATCH_SIZE, HF_TOKEN, AUDIO_SEPARATOR_HOME
 from config.settings import LLM_API_BASE, LLM_API_KEY, LLM_MODEL, LLM_MAX_TOKENS, LLM_TEMPERATURE, is_llm_configured
 
@@ -128,6 +128,14 @@ class FullPipelineEngine:
             traceback.print_exc()
             raise e
 
+    def _notify(self, callback: Optional[Callable], fraction: float, desc: str):
+        """安全调用进度回调"""
+        if callback:
+            try:
+                callback(fraction, desc)
+            except Exception:
+                pass
+
     def run_pipeline(
         self, 
         audio_path: str, 
@@ -147,6 +155,8 @@ class FullPipelineEngine:
         llm_enabled: bool = False,
         llm_mode: str = "segmentation",
         llm_target_lang: Optional[str] = None,
+        # 进度回调: callable(fraction: float, description: str)
+        progress_callback: Optional[Callable] = None,
     ) -> Tuple[Any, str]:
         
         temp_files_to_clean = []
@@ -155,6 +165,7 @@ class FullPipelineEngine:
             processing_audio = None
             
             # 1. 预处理阶段
+            self._notify(progress_callback, 0.0, "音频预处理中...")
             if enable_demucs:
                 processing_audio = self._isolate_vocals(audio_path)
                 temp_files_to_clean.append(processing_audio)
@@ -162,8 +173,10 @@ class FullPipelineEngine:
             else:
                 processing_audio = self._convert_to_wav(audio_path)
                 temp_files_to_clean.append(processing_audio)
+            self._notify(progress_callback, 0.10, "预处理完成")
             
             # 2. 转录阶段 (ASR)
+            self._notify(progress_callback, 0.10, "加载 ASR 模型...")
             logger.info(f"1. 执行转录 ({model_size} | {compute_type})...")
             
             asr_options = {
@@ -208,14 +221,17 @@ class FullPipelineEngine:
                 self._current_vad_onset = vad_onset
                 self._current_lang = lang
             
+            self._notify(progress_callback, 0.20, "模型就绪，正在转录...")
             audio = whisperx.load_audio(processing_audio)
             
             result = self.transcribe_model.transcribe(
                 audio, 
                 batch_size=BATCH_SIZE
             )
+            self._notify(progress_callback, 0.45, "转录完成")
             
             # 3. 强对齐阶段 (Alignment)
+            self._notify(progress_callback, 0.45, "执行音素级对齐...")
             logger.info("2. 执行音素级对齐...")
             if result["segments"]:
                 model_a, metadata = whisperx.load_align_model(
@@ -226,10 +242,12 @@ class FullPipelineEngine:
                 )
                 del model_a
                 self._clear_gpu()
+            self._notify(progress_callback, 0.60, "对齐完成")
             logger.info("转录与对齐完成")
 
             # 3.5 幻觉过滤阶段
             if hallucination_mode == "code":
+                self._notify(progress_callback, 0.60, "代码规则幻觉过滤...")
                 logger.info("2.5 执行代码规则幻觉过滤...")
                 result["segments"] = filter_hallucinated_segments(
                     result["segments"],
@@ -237,6 +255,7 @@ class FullPipelineEngine:
                 )
             elif hallucination_mode == "llm":
                 if is_llm_configured():
+                    self._notify(progress_callback, 0.60, "LLM 幻觉过滤...")
                     logger.info("2.5 执行 LLM 幻觉过滤...")
                     try:
                         llm = LLMProcessor(
@@ -263,9 +282,11 @@ class FullPipelineEngine:
                         confidence_threshold=hallucination_threshold,
                     )
             # hallucination_mode == "off" → 不做任何过滤
+            self._notify(progress_callback, 0.70, "幻觉过滤完成")
 
             # 3.6 LLM 智能断句/翻译（可选）
             if llm_enabled and is_llm_configured():
+                self._notify(progress_callback, 0.70, f"LLM 智能处理 ({llm_mode})...")
                 logger.info(f"3. LLM 智能处理 ({LLM_MODEL} | {llm_mode})...")
                 try:
                     llm = LLMProcessor(
@@ -287,9 +308,11 @@ class FullPipelineEngine:
                     logger.error(f"LLM 处理失败，使用原始断句: {e}")
             elif llm_enabled and not is_llm_configured():
                 logger.warning("LLM 已启用但未配置 API，请编辑 config/llm_config.json")
+            self._notify(progress_callback, 0.85, "LLM 处理完成")
 
             # 4. 说话人区分阶段 (Diarization)
             if enable_diarization:
+                self._notify(progress_callback, 0.85, "说话人聚类...")
                 if not HF_TOKEN:
                     return result["segments"], "Error: HF_TOKEN 未配置"
 
@@ -337,6 +360,7 @@ class FullPipelineEngine:
                 # 不再每次删除 diarize_model，保留缓存供下次复用
                 self._clear_gpu()
 
+            self._notify(progress_callback, 1.0, "处理完成")
             return result["segments"], "Success"
 
         except Exception as e:

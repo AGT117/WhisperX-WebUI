@@ -26,6 +26,7 @@ def process_batch_task(
     custom_output_path,
     hallucination_mode, hallucination_threshold,
     llm_enabled, llm_mode, llm_target_lang,
+    progress=gr.Progress(),
 ):
     """WebUI 批处理回调函数"""
     if not file_paths:
@@ -68,6 +69,21 @@ def process_batch_task(
         input_path = Path(file_path)
         file_stem = input_path.stem
         
+        # 计算当前文件在总进度中的基准和范围
+        file_base = i / total_files
+        file_range = 1.0 / total_files
+        
+        def make_progress_callback(base, rng, idx, total, stem):
+            """创建闭包以捕获当前循环变量"""
+            def _cb(fraction, desc):
+                overall = base + fraction * rng
+                progress(overall, desc=f"[{idx}/{total}] {stem}: {desc}")
+            return _cb
+        
+        progress_callback = make_progress_callback(
+            file_base, file_range, current_index, total_files, file_stem
+        )
+        
         mode_info = "[人声分离模式]" if enable_demucs else "[标准转录模式]"
         status_msg = f"[进度: {current_index}/{total_files}] 正在处理: {file_stem} ... {mode_info} (VAD阈值: {vad_onset})"
         current_log = status_msg + "\n" + log_buffer
@@ -94,6 +110,7 @@ def process_batch_task(
                     llm_enabled=llm_enabled,
                     llm_mode=llm_mode if llm_mode else "segmentation",
                     llm_target_lang=llm_target_lang if llm_target_lang else None,
+                    progress_callback=progress_callback,
                 )
 
             # 结构化错误检测：通过状态码前缀判断，而非字符串包含
@@ -136,11 +153,14 @@ def process_batch_task(
             yield log_buffer
 
     if release_memory:
+        progress(0.95, desc="正在释放显存...")
         yield "正在执行资源释放...\n" + log_buffer
         with _engine_lock:
             engine.unload_all()
+        progress(1.0, desc="全部完成")
         yield "所有任务执行完毕，显存已释放。\n" + log_buffer
     else:
+        progress(1.0, desc="全部完成")
         yield "所有任务执行完毕。\n" + log_buffer
 
 def create_ui():
@@ -209,7 +229,7 @@ def create_ui():
                         gr.Markdown("**幻觉过滤 (Hallucination Filter)**")
                         hallucination_mode_radio = gr.Radio(
                             ["代码规则过滤", "LLM 智能过滤", "关闭"],
-                            value="代码规则过滤",
+                            value="关闭",
                             label="幻觉过滤模式",
                             info="代码规则: 基于置信度+模式匹配+时间异常(0 API 费用) | LLM 智能: 由大模型判断(需配置 llm_config.json) | 关闭: 不过滤"
                         )
@@ -349,7 +369,7 @@ def create_ui():
                 llm_enabled_cb, llm_mode_sel, llm_target_lang_input,
             ], 
             outputs=[text_out], 
-            show_progress="minimal" 
+            show_progress="full" 
         )
         
         btn_stop.click(fn=None, inputs=None, outputs=None, cancels=[process_event])
