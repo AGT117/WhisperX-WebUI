@@ -17,8 +17,12 @@ outputs/*
 models/*
 !models/.gitkeep
 
-# 测试 (忽略掉)
+# 本地构建测试 (忽略掉)
 tests/
+start.bat
+build_exe.py
+launcher.py
+dist/
 
 # 虚拟环境 (如果你的环境叫这些名字)
 venv/
