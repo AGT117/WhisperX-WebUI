@@ -21,10 +21,21 @@ def suppress_noise():
     warnings.filterwarnings("ignore", message=".*Lightning automatically upgraded.*")
     warnings.filterwarnings("ignore", message=".*The 'use_auth_token' argument.*")
 
-    logging.getLogger("whisperx").setLevel(logging.ERROR)
-    logging.getLogger("speechbrain").setLevel(logging.ERROR)
-    logging.getLogger("pyannote").setLevel(logging.ERROR)
-    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    # 压制第三方库的 INFO 日志刻屏
+    _noisy_loggers = [
+        "whisperx", "speechbrain", "pyannote", "pytorch_lightning",
+        "faster_whisper", "ctranslate2",           # Whisper 引擎
+        "httpx", "httpcore",                         # Gradio HTTP 请求日志
+        "uvicorn", "uvicorn.access", "uvicorn.error", # ASGI 服务器
+        "gradio", "gradio_client",                   # Gradio 组件日志
+        "numba", "numba.core",                       # JIT 编译
+        "matplotlib", "matplotlib.font_manager",     # 字体缓存
+        "audio_separator",                           # 人声分离模型
+        "torch", "torchaudio",                       # PyTorch
+        "filelock",                                  # 文件锁
+    ]
+    for name in _noisy_loggers:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 suppress_noise()
 
@@ -162,10 +173,13 @@ from src.ui.webui import create_ui
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.WARNING,  # 全局默认 WARNING，避免第三方库刻屏
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S"
     )
+    # 仅对项目自身模块开启 INFO 级别
+    for _mod in ["__main__", "src", "src.core", "src.core.engine", "src.core.utils", "src.ui", "src.ui.webui"]:
+        logging.getLogger(_mod).setLevel(logging.INFO)
     logger.info(f"服务启动序列初始化...")
     logger.info(f"根目录: {settings.ROOT_DIR}")
     logger.info(f"设备: {settings.DEVICE} | 精度: {settings.COMPUTE_TYPE} | 批大小: {settings.BATCH_SIZE}")

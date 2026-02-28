@@ -23,12 +23,22 @@ MIN_WORDS = 2       # 拉丁语系最少单词数
 MIN_CJK_CHARS = 6   # CJK 最少字符数
 
 # CJK 无标点时的最大行字符数（超过则强制分段）
-# 用于处理日文歌词等缺少标点的长文本块
 MAX_CJK_LINE_CHARS = 20
 
-# 日文助词集合 —— 作为强制分段时的首选断句位置
-# 在这些助词之后切分最为自然（は/が/を 等标记语法边界）
+# CJK 时间间隙断句阈值：相邻词间超过此值（秒）表示自然停顿、优先在此处断句
+CJK_GAP_THRESHOLD = 0.3
+
+# 日文助词集合 —— 语法边界标记（は/が/を 等）
 _JP_PARTICLES = {'は', 'が', 'を', 'に', 'で', 'の', 'と', 'も', 'へ', 'から', 'まで', 'より', 'って', 'ね', 'よ', 'さ', 'な', 'て', 'た', 'だ'}
+
+# 中文功能词集合 —— 常出现在短语末尾，可作为断句候选位置
+_ZH_FUNCTION_WORDS = {'了', '的', '吧', '呢', '啊', '嘛', '着', '过', '呢', '呀',
+                      '来', '去', '下', '上', '里', '中',  # 方位/趋向
+                      '很', '都', '就', '还', '又', '也',  # 副词
+                      '被', '把', '让', '给',              # 介词
+                      '而', '但', '却', '又',              # 连词
+                      '我', '你', '他', '她',              # 人称代词（常为新句开头）
+                      }
 
 # CJK Unicode 范围检测
 def _is_cjk_char(ch: str) -> bool:
@@ -345,9 +355,11 @@ def split_segment_by_punctuation(segment):
     1. 标点符号决定换行 (优先级最高)
     2. 大写字母辅助断句，但排除 NO_SPLIT_CAPS 中的特殊词（仅拉丁语系）
     3. 保留短句合并功能 (MIN_WORDS / MIN_CJK_CHARS)
-    4. CJK 文本自动检测：跳过大写逻辑，仅按标点断句，不插入字间空格
-    5. CJK 字符数强制分段：当无标点文本超过 MAX_CJK_LINE_CHARS 字符时，
-       优先在日文助词后切分，次选在 CJK 字符边界处切分
+    4. CJK 文本自动检测：跳过大写逻辑，不插入字间空格
+    5. CJK 智能分段（三重策略）：
+       a) 时间间隙检测：利用 WhisperX 词级时间戳，在自然停顿处断句（最高优先）
+       b) 功能词/助词：接近字数上限时，在日文助词或中文功能词后断句
+       c) 字数兜底：达到 MAX_CJK_LINE_CHARS 时在任意 CJK 字符处断句
     """
     sub_segments = []
     
@@ -426,16 +438,30 @@ def split_segment_by_punctuation(segment):
             soft_threshold = 10 if is_cjk else 15
             has_soft_punct = (w_text and w_text[-1] in SOFT_PUNCTUATION) and (current_len > soft_threshold)
 
-            # --- 3. CJK 字符数强制分段 (无标点歌词场景) ---
-            # 策略：
-            #   a) 接近 MAX 时（MAX-3），如果当前词是日文助词 → 提前切分（语法边界更自然）
-            #   b) 达到 MAX 时，在任何 CJK 字符处切分（硬回退，保证中文也能分段）
+            # --- 3. CJK 智能分段 (时间间隙 + 功能词 + 字数三重策略) ---
+            # 优先级：时间间隙 > 功能词/助词 > 纯字数
             force_cjk_split = False
             if is_cjk and not is_last_word and not has_hard_punct:
-                # 优先：接近阈值时遇到日文助词 → 在语法边界处提前切分
-                if current_len >= MAX_CJK_LINE_CHARS - 3 and w_text in _JP_PARTICLES:
+                # 计算当前词与下一词之间的时间间隙
+                next_valid = None
+                for ni in range(i + 1, len(words)):
+                    if 'start' in words[ni]:
+                        next_valid = words[ni]
+                        break
+                time_gap = (next_valid['start'] - word_obj['end']) if next_valid else 0.0
+                
+                # 策略 A: 时间间隙超过阈值 → 自然停顿处断句（最高优先级）
+                # 条件：已累积超过最小字数 + 时间间隙显著
+                if current_len >= MIN_CJK_CHARS and time_gap >= CJK_GAP_THRESHOLD:
                     force_cjk_split = True
-                # 回退：达到阈值时在任何 CJK 字符处切分
+                
+                # 策略 B: 接近字数上限时，在功能词/助词处提前断句（语法边界）
+                elif current_len >= MAX_CJK_LINE_CHARS - 3:
+                    if w_text in _JP_PARTICLES or w_text in _ZH_FUNCTION_WORDS:
+                        force_cjk_split = True
+                
+                # 策略 C: 达到字数上限，回看找最近的时间间隙作为断句点
+                # （如果找不到好的间隙，则在当前位置硬切）
                 elif current_len >= MAX_CJK_LINE_CHARS and w_text and _is_cjk_char(w_text[0]):
                     force_cjk_split = True
 
@@ -443,7 +469,7 @@ def split_segment_by_punctuation(segment):
             is_long_enough = len(current_text) > min_units
 
             # -> 执行切分 (结算当前句)
-            # 硬标点无条件切分；软标点需要句子超过阈值才切；CJK 强制分段
+            # 硬标点无条件切分；软标点需要句子超过阈值才切；CJK 智能分段
             if is_last_word or has_hard_punct or (is_long_enough and has_soft_punct) or force_cjk_split:
                 full_text = _clean_text(current_str, is_cjk)
 

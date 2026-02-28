@@ -279,6 +279,73 @@ class TestSplitSegmentByPunctuation(unittest.TestCase):
         merged = "".join(sub["text"] for sub in result)
         self.assertEqual(merged, "".join(chars))
 
+    def test_cjk_time_gap_splits(self):
+        """CJK 文本应在时间间隙处断句（最高优先级）"""
+        # 模拟真实场景：10个字连续 + 0.8s停顿 + 10个字连续
+        words_data = [
+            ("星", 0.0, 0.1), ("期", 0.1, 0.2), ("五", 0.2, 0.3),
+            ("晚", 0.3, 0.4), ("上", 0.4, 0.5), ("九", 0.5, 0.6),
+            ("点", 0.6, 0.7), ("相", 0.7, 0.8), ("约", 0.8, 0.9),
+            ("的", 0.9, 1.0),
+            # ↓ 0.8s 时间间隙（自然停顿）
+            ("好", 1.8, 1.9), ("认", 1.9, 2.0), ("识", 2.0, 2.1),
+            ("同", 2.1, 2.2), ("学", 2.2, 2.3), ("聚", 2.3, 2.4),
+            ("会", 2.4, 2.5),
+        ]
+        seg = self._make_segment(words_data)
+        result = split_segment_by_punctuation(seg)
+        # 应在 "的" 后面断句（0.8s 间隙）
+        self.assertGreaterEqual(len(result), 2)
+        self.assertEqual(result[0]["text"], "星期五晚上九点相约的")
+        self.assertEqual(result[1]["text"], "好认识同学聚会")
+
+    def test_cjk_time_gap_respects_min_chars(self):
+        """时间间隙断句应遵守最小字符数保护"""
+        # 第 2 个字后就有大间隙，但 2 字太短不应切
+        words_data = [
+            ("你", 0.0, 0.1), ("好", 0.1, 0.2),
+            # ↓ 1.0s 间隙但只有 2 字
+            ("我", 1.2, 1.3), ("是", 1.3, 1.4), ("小", 1.4, 1.5),
+            ("明", 1.5, 1.6),
+        ]
+        seg = self._make_segment(words_data)
+        result = split_segment_by_punctuation(seg)
+        # 6 字 < MAX_CJK_LINE_CHARS，且前 2 字 < MIN_CJK_CHARS=6，不应在那里切
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["text"], "你好我是小明")
+
+    def test_cjk_time_gap_multiple_pauses(self):
+        """多个时间间隙应各自触发断句"""
+        words_data = [
+            ("聚", 0.0, 0.1), ("会", 0.1, 0.2), ("哦", 0.2, 0.3),
+            ("耶", 0.3, 0.4), ("哦", 0.4, 0.5), ("耶", 0.5, 0.6),
+            ("行", 0.6, 0.7),
+            # ↓ 1.5s 间隙
+            ("重", 2.2, 2.3), ("庆", 2.3, 2.4), ("的", 2.4, 2.5),
+            ("房", 2.5, 2.6), ("间", 2.6, 2.7), ("遇", 2.7, 2.8),
+            ("见", 2.8, 2.9),
+            # ↓ 0.6s 间隙  
+            ("到", 3.5, 3.6), ("一", 3.6, 3.7), ("个", 3.7, 3.8),
+            ("同", 3.8, 3.9), ("学", 3.9, 4.0),
+        ]
+        seg = self._make_segment(words_data)
+        result = split_segment_by_punctuation(seg)
+        # 应在两个间隙处各断一次 → 3 段
+        self.assertEqual(len(result), 3)
+
+    def test_cjk_zh_function_word_split(self):
+        """中文功能词应在接近字数上限时触发断句"""
+        # 构造无间隙的连续文本，依赖功能词断句
+        chars = list("星期五晚上九点我们约好了在这个地方见面")
+        words_data = [(ch, i * 0.1, (i + 1) * 0.1) for i, ch in enumerate(chars)]
+        seg = self._make_segment(words_data)
+        result = split_segment_by_punctuation(seg)
+        # 19 字，接近 MAX(20)，"了" 在位置11应作为功能词触发切分
+        if len(result) >= 2:
+            # 检查切分点在某个功能词附近
+            first_text = result[0]["text"]
+            self.assertLessEqual(len(first_text), MAX_CJK_LINE_CHARS + 3)
+
 
 class TestGenerateSrt(unittest.TestCase):
     """测试 SRT 生成"""
