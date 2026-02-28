@@ -17,6 +17,9 @@ outputs/*
 models/*
 !models/.gitkeep
 
+# 测试输出 (忽略掉)
+tests/
+
 # 虚拟环境 (如果你的环境叫这些名字)
 venv/
 .venv/
