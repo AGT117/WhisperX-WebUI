@@ -99,7 +99,7 @@ python main.py
 
 启动后浏览器自动打开 `http://127.0.0.1:7860`。
 
-也可使用`WhisperX-WebUI.exe` 双击启动。
+也可使用 `WhisperX-WebUI.exe` 双击启动。
 
 ---
 
@@ -112,7 +112,7 @@ WhisperX-WebUI/
 ├── .env.example                # 环境变量配置模板
 ├── config/
 │   ├── settings.py             # 全局配置（路径、设备、精度、LLM 加载）
-│   └── llm_config.json.example         # LLM API 配置文件模板
+│   └── llm_config.json.example # LLM API 配置文件模板
 ├── src/
 │   ├── core/
 │   │   ├── engine.py           # 核心管道（ASR、对齐、幻觉过滤、LLM、聚类）
@@ -162,7 +162,3 @@ WhisperX-WebUI/
 | `temperature` | 生成温度（0.0-1.0） |
 
 ---
-
-## 许可证
-
-MIT License
