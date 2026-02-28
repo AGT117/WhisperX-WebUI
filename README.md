@@ -4,11 +4,11 @@
 
 集成人声分离（BS-RoFormer）、音素级强制对齐、说话人聚类（Pyannote）与 LLM 智能后处理，通过 Gradio 网页界面进行操作，支持批量处理音频/视频文件，导出 JSON 与 SRT 字幕。
 
-![alt text](demo/whisperx-webui.png)
 网页界面展示
+![alt text](demo/whisperx-webui.png)
 
-![alt text](demo/whisper-webui-exe.png)
 终端界面展示
+![alt text](demo/whisper-webui-exe.png)
 
 ---
 
