@@ -13,6 +13,12 @@ __pycache__/
 
 # 本地文件
 config/llm_config.json
+进度扩写/
+修改建议/
+毕设选题文档.txt
+进度报告.txt
+.gitignore
+README.md
 
 # 项目输出目录
 outputs/*

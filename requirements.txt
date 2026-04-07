@@ -23,6 +23,8 @@ huggingface_hub>=0.20.0
 omegaconf>=2.3.0
 ffmpeg-python
 openai>=1.0.0
+matplotlib>=3.7.0
+wordcloud>=1.9.0
 
 # 4. WhisperX
 git+https://github.com/m-bain/whisperX.git

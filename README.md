@@ -103,6 +103,54 @@ python main.py
 
 ---
 
+## 语料库论文增强脚本
+
+### 1) 数据物化（JSONL → 音频切片数据集）
+
+将 `dataset_merged.jsonl` 按 `start/end` 裁剪为可训练的短音频 `.wav`，并生成 `metadata.jsonl`：
+
+```bash
+python scripts/materialize_corpus.py \
+    --input-jsonl "outputs/corpus/dataset_merged.jsonl" \
+    --output-dir "outputs/My_Podcast_Dataset"
+```
+
+输出结构：
+
+```text
+outputs/My_Podcast_Dataset/
+├── metadata.jsonl
+├── failed_segments.jsonl
+└── audio/
+        ├── SPEAKER_00_seg00001.wav
+        ├── SPEAKER_01_seg00002.wav
+        └── ...
+```
+
+### 2) 数据可视化分析
+
+生成漏斗图、语速直方图，以及（可选）规则 G 词云图：
+
+```bash
+python scripts/analyze_corpus.py \
+    --merged-jsonl "outputs/corpus/dataset_merged.jsonl" \
+    --quality-log "outputs/corpus/日志.txt" \
+    --output-dir "outputs/analysis"
+```
+
+如有规则 G 拦截样本 JSONL，可额外生成词云：
+
+```bash
+python scripts/analyze_corpus.py \
+    --merged-jsonl "outputs/corpus/dataset_merged.jsonl" \
+    --quality-log "outputs/corpus/日志.txt" \
+    --removed-g-jsonl "outputs/corpus/rule_g_removed.jsonl" \
+    --output-dir "outputs/analysis" \
+    --font-path "C:/Windows/Fonts/msyh.ttc"
+```
+
+---
+
 ## 项目结构
 
 ```

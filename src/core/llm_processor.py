@@ -94,6 +94,49 @@ _SYS_BOTH = """\
 示例输出：
 [{{"text":"今日は天気がいいですね","translation":"今天天气真好呢"}},{{"text":"一緒に公園を散歩しましょう","translation":"一起去公园散步吧"}}]"""
 
+_SYS_SEMANTIC_FILTER = """\
+你是一个严谨的语言学与语料库清洗专家。你的任务是分析以下提取自播客/访谈的对话文本，判断其是否适合用于训练"日常情感陪伴与拟人化AI"。
+请严格以 JSON 格式输出评估结果，包含以下字段：
+1. "is_ad_or_irrelevant" (bool): 是否包含商业软广、播客赞助鸣谢、或刻板的单向访谈。
+2. "emotion_score" (int, 1-5): 情感丰富度。1为毫无感情/念稿，5为情绪饱满/强共情。
+3. "hallucination_risk" (bool): 是否存在明显的语音识别错误导致的逻辑不通。
+4. "reason" (string): 简短的判决理由（20字以内）。
+
+输入格式：JSON 数组，每个元素有 "id"（会话组编号）和 "texts"（该组所有句子的数组）。
+
+规则：
+1. 返回 **纯 JSON 数组**，每个元素是对象: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "reason": "..."}
+2. 必须对每个输入组都给出评估，不可遗漏
+3. 无法确定时，给出保守评估（保留而非丢弃）
+4. 不要输出任何 JSON 以外的内容（无解释、无 markdown）"""
+
+_SYS_SEMANTIC_FILTER_OVERRIDE = """\
+你是一个严谨的语言学与语料库清洗专家。你的任务是作为最终裁决者，分析以下对话文本是否适合用于训练"日常情感陪伴与拟人化AI"。
+
+每组输入可能携带前置规则引擎的标记（flags），这些标记说明了该组被怀疑存在问题的原因：
+- flag_c_length_ratio: 语速异常（太快或太慢），可能是识别噪音
+- flag_d_context_island: 上下文孤立，周围没有对话互动
+- flag_e_low_info: 极短的附和词（如"嗯""啊"），可能无信息量
+- flag_g_blacklist: 命中了广告/推广黑名单关键词
+
+你需要综合判断：这些标记是否准确？有些被标记的内容实际上可能是有价值的（比如自然附和体现情感、孤立段落但内容优质等）。
+
+请输出以下字段：
+1. "is_ad_or_irrelevant" (bool): 是否包含商业软广、播客赞助鸣谢、或刻板的单向访谈。
+2. "emotion_score" (int, 1-5): 情感丰富度。1为毫无感情/念稿，5为情绪饱满/强共情。
+3. "hallucination_risk" (bool): 是否存在明显的语音识别错误导致的逻辑不通。
+4. "final_decision" (bool): **最终裁决**——true=保留该组, false=丢弃该组。请综合所有信息做出判断。
+5. "reason" (string): 简短的判决理由（20字以内）。
+
+输入格式：JSON 数组，每个元素有 "id"（会话组编号）、"texts"（句子数组）、"flags"（被触发的标记列表，可能为空）。
+
+规则：
+1. 返回 **纯 JSON 数组**，每个元素: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "final_decision": bool, "reason": "..."}
+2. 必须对每个输入组都给出评估，不可遗漏
+3. 对于无标记(flags为空)的组：通常应保留(final_decision=true)，除非内容确实有问题
+4. 对于有标记的组：仔细审核标记是否合理，LLM 有权推翻规则引擎的判断
+5. 不要输出任何 JSON 以外的内容（无解释、无 markdown）"""
+
 _SYS_HALLUCINATION = """\
 你是语音识别质量审核助手。判断以下语音识别片段是否为"幻觉"（即模型虚构的、实际音频中不存在的文本）。
 
@@ -284,6 +327,237 @@ class LLMProcessor:
                 f"[LLM·幻觉过滤] 移除 {removed} 段，保留 {len(filtered)} 段"
             )
         return filtered
+
+    def semantic_filter(
+        self,
+        segments: list,
+        emotion_threshold: int = 3,
+        concurrency: int = 3,
+        override_mode: bool = False,
+        progress_callback=None,
+    ) -> tuple:
+        """
+        规则 H: LLM 语义校验 — 对语料进行情感丰富度、软广识别、幻觉检测。
+
+        按 conversation_id 分组打包发送，结合上下文判断。
+        使用线程池实现并发 API 调用。
+
+        Args:
+            segments:          带有 conversation_id 的 enriched segment 列表
+            emotion_threshold: 情感得分阈值 (1-5)，低于此值的组将被丢弃
+            concurrency:       并发 API 请求数
+            override_mode:     LLM 接管模式 — 传入 flag 字段，由 LLM 做 final_decision
+            progress_callback: 可选进度回调 callable(fraction, desc)
+
+        Returns:
+            (filtered_segments, stats_dict)
+            stats_dict 包含: removed_count, unchecked_count, overridden_count, details
+        """
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+
+        if not segments:
+            return segments, {'removed_count': 0, 'unchecked_count': 0, 'overridden_count': 0, 'details': []}
+
+        # 选择系统 Prompt
+        sys_prompt = _SYS_SEMANTIC_FILTER_OVERRIDE if override_mode else _SYS_SEMANTIC_FILTER
+
+        # 收集每组的 flags（接管模式下）
+        _FLAG_KEYS = ('flag_c_length_ratio', 'flag_d_context_island', 'flag_e_low_info', 'flag_g_blacklist')
+
+        # 1. 按 conversation_id 分组
+        groups = {}
+        group_flags = {}  # cid -> set of flag names
+        for seg in segments:
+            cid = seg.get('conversation_id', 0)
+            groups.setdefault(cid, []).append(seg)
+            if override_mode:
+                flags = group_flags.setdefault(cid, set())
+                for fk in _FLAG_KEYS:
+                    if seg.get(fk):
+                        flags.add(fk)
+
+        sorted_cids = sorted(groups.keys())
+        logger.info(
+            f"[LLM·语义过滤] {len(segments)} 段 → {len(sorted_cids)} 组 "
+            f"(emotion_threshold={emotion_threshold}, concurrency={concurrency})"
+        )
+
+        # 2. 构建 API 请求批次（按 token 预算分组）
+        sys_overhead = 800
+        response_ratio = 0.35
+        budget = int(
+            (self.max_context_tokens - sys_overhead) * (1 - response_ratio)
+        )
+        budget = max(budget, 500)
+
+        api_batches = []  # 每个元素: [(cid, texts), ...]
+        cur_batch = []
+        cur_tokens = 0
+
+        for cid in sorted_cids:
+            segs = groups[cid]
+            texts = [s.get('text', '').strip() for s in segs if s.get('text', '').strip()]
+            combined = " ".join(texts)
+            item_tokens = _estimate_tokens(combined) + 30  # JSON 格式开销
+
+            if cur_tokens + item_tokens > budget and cur_batch:
+                api_batches.append(cur_batch)
+                cur_batch = []
+                cur_tokens = 0
+
+            cur_batch.append((cid, texts))
+            cur_tokens += item_tokens
+
+        if cur_batch:
+            api_batches.append(cur_batch)
+
+        logger.info(f"[LLM·语义过滤] {len(sorted_cids)} 组 → {len(api_batches)} 个API批次")
+
+        # 3. 同步调用单批次
+        def _call_batch(batch_items):
+            """调用 LLM 评估一个批次，返回 {cid: result_dict}"""
+            input_data = []
+            for cid, texts in batch_items:
+                item = {"id": cid, "texts": texts}
+                if override_mode:
+                    item["flags"] = sorted(group_flags.get(cid, []))
+                input_data.append(item)
+
+            user_prompt = json.dumps(input_data, ensure_ascii=False)
+            results = {}
+
+            try:
+                raw = self._call_api(sys_prompt, user_prompt)
+                parsed = self._extract_json(raw)
+
+                if isinstance(parsed, list):
+                    for item in parsed:
+                        if isinstance(item, dict):
+                            item_id = item.get("id")
+                            if item_id is not None:
+                                result = {
+                                    "is_ad_or_irrelevant": bool(item.get("is_ad_or_irrelevant", False)),
+                                    "emotion_score": int(item.get("emotion_score", 3)),
+                                    "hallucination_risk": bool(item.get("hallucination_risk", False)),
+                                    "reason": str(item.get("reason", ""))[:50],
+                                    "llm_status": "checked",
+                                }
+                                if override_mode:
+                                    result["final_decision"] = bool(item.get("final_decision", True))
+                                results[item_id] = result
+            except Exception as e:
+                logger.error(f"[LLM·语义过滤] API批次失败: {e}")
+
+            # 未返回结果的组标记为 UNCHECKED（降级保留）
+            for cid, _ in batch_items:
+                if cid not in results:
+                    results[cid] = {
+                        "is_ad_or_irrelevant": False,
+                        "emotion_score": 3,
+                        "hallucination_risk": False,
+                        "reason": "API未返回",
+                        "llm_status": "unchecked",
+                    }
+
+            return results
+
+        # 4. 使用线程池并发调用
+        all_results = {}  # cid -> result_dict
+        total_batches = len(api_batches)
+
+        def _run_all():
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                futures = {executor.submit(_call_batch, batch): idx
+                           for idx, batch in enumerate(api_batches)}
+                for future in futures:
+                    idx = futures[future]
+                    try:
+                        batch_results = future.result()
+                        all_results.update(batch_results)
+                    except Exception as e:
+                        logger.error(f"[LLM·语义过滤] 线程异常 (批次{idx}): {e}")
+                    if progress_callback:
+                        done = len(all_results)
+                        progress_callback(done / max(len(sorted_cids), 1),
+                                          f"语义过滤 {done}/{len(sorted_cids)} 组")
+
+        # 在同步上下文中运行
+        _run_all()
+
+        # 5. 根据评估结果过滤 + 注入语义标签
+        filtered = []
+        removed_count = 0
+        unchecked_count = 0
+        overridden_count = 0
+        details = []
+
+        for cid in sorted_cids:
+            result = all_results.get(cid, {
+                "is_ad_or_irrelevant": False,
+                "emotion_score": 3,
+                "hallucination_risk": False,
+                "reason": "未评估",
+                "llm_status": "unchecked",
+            })
+
+            if result.get("llm_status") == "unchecked":
+                unchecked_count += len(groups[cid])
+
+            details.append({"conversation_id": cid, **result})
+
+            # 判定是否过滤
+            if override_mode:
+                # 接管模式：由 LLM 的 final_decision 决定
+                should_remove = not result.get("final_decision", True)
+                # UNCHECKED 的组降级保留
+                if result.get("llm_status") == "unchecked":
+                    should_remove = False
+                # 统计被 flag 但被 LLM 保留的翻转次数
+                has_flags = bool(group_flags.get(cid))
+                if has_flags and not should_remove and result.get("llm_status") == "checked":
+                    overridden_count += len(groups[cid])
+            else:
+                # 传统模式：按规则组合判定
+                should_remove = (
+                    result.get("is_ad_or_irrelevant", False)
+                    or result.get("emotion_score", 3) < emotion_threshold
+                    or result.get("hallucination_risk", False)
+                )
+                if result.get("llm_status") == "unchecked":
+                    should_remove = False
+
+            if should_remove:
+                removed_count += len(groups[cid])
+                for seg in groups[cid]:
+                    logger.debug(
+                        f"[规则H] 移除 (cid={cid}, "
+                        f"ad={result.get('is_ad_or_irrelevant')}, "
+                        f"emo={result.get('emotion_score')}, "
+                        f"reason={result.get('reason')}): "
+                        f"\"{seg.get('text', '')[:40]}\""
+                    )
+            else:
+                # 注入语义标签到每个 segment
+                for seg in groups[cid]:
+                    seg['emotion_score'] = result.get('emotion_score', 3)
+                    seg['is_ad'] = result.get('is_ad_or_irrelevant', False)
+                    seg['hallucination_risk'] = result.get('hallucination_risk', False)
+                    seg['llm_status'] = result.get('llm_status', 'unchecked')
+                    filtered.append(seg)
+
+        logger.info(
+            f"[LLM·语义过滤] 完成: 保留 {len(filtered)} 段, "
+            f"移除 {removed_count} 段, 未检查 {unchecked_count} 段"
+        )
+
+        stats = {
+            'removed_count': removed_count,
+            'unchecked_count': unchecked_count,
+            'overridden_count': overridden_count,
+            'details': details,
+        }
+        return filtered, stats
 
     # ── 内部方法 ────────────────────────────────────────────
 
