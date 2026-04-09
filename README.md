@@ -129,24 +129,13 @@ outputs/My_Podcast_Dataset/
 
 ### 2) 数据可视化分析
 
-生成漏斗图、语速直方图，以及（可选）规则 G 词云图：
+生成漏斗图、语速直方图等质量分析图：
 
 ```bash
 python scripts/analyze_corpus.py \
     --merged-jsonl "outputs/corpus/dataset_merged.jsonl" \
-    --quality-log "outputs/corpus/日志.txt" \
+    --quality-stats "outputs/corpus/quality_stats.json" \
     --output-dir "outputs/analysis"
-```
-
-如有规则 G 拦截样本 JSONL，可额外生成词云：
-
-```bash
-python scripts/analyze_corpus.py \
-    --merged-jsonl "outputs/corpus/dataset_merged.jsonl" \
-    --quality-log "outputs/corpus/日志.txt" \
-    --removed-g-jsonl "outputs/corpus/rule_g_removed.jsonl" \
-    --output-dir "outputs/analysis" \
-    --font-path "C:/Windows/Fonts/msyh.ttc"
 ```
 
 ---

@@ -6,7 +6,7 @@ import tempfile
 import traceback
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, Any, Callable
+from typing import Optional, Tuple, Any, Callable, Dict
 from config.settings import DEVICE, COMPUTE_TYPE, BATCH_SIZE, HF_TOKEN, AUDIO_SEPARATOR_HOME
 from config.settings import LLM_API_BASE, LLM_API_KEY, LLM_MODEL, LLM_MAX_TOKENS, LLM_TEMPERATURE, is_llm_configured
 
@@ -26,6 +26,40 @@ logger = logging.getLogger(__name__)
 
 # FFmpeg 最大执行时间 (秒)
 FFMPEG_TIMEOUT = 600
+
+
+_RULE_H_REASON_TEXT = {
+    'ad': '商业推广/内容无关',
+    'emo': '情感表达不足',
+    'asr': '疑似识别幻觉',
+    'keep': '保守保留',
+    'override': '规则标记被LLM推翻',
+    'other': '其他语义原因',
+    'unchecked': 'API未返回(降级保留)',
+}
+
+
+def _format_rule_h_reason(reason_code: str) -> str:
+    text = _RULE_H_REASON_TEXT.get(reason_code, _RULE_H_REASON_TEXT['other'])
+    return f"LLM语义过滤({text})"
+
+
+def _pick_override_removed_rule(seg: dict) -> str:
+    """
+    在 LLM 接管模式下，为被 LLM 最终删除的段落确定主归因规则。
+
+    若命中过滤软标签，则优先归因给对应前置规则；
+    否则归因为 rule_h（纯语义判定删除）。
+    """
+    if seg.get('flag_g_blacklist'):
+        return 'rule_g'
+    if seg.get('flag_c_length_ratio'):
+        return 'rule_c'
+    if seg.get('flag_d_context_island'):
+        return 'rule_d'
+    if seg.get('flag_e_low_info'):
+        return 'rule_e'
+    return 'rule_h'
 
 class FullPipelineEngine:
     def __init__(self):
@@ -139,6 +173,25 @@ class FullPipelineEngine:
             except Exception:
                 pass
 
+    def _cancel_status_if_requested(
+        self,
+        stop_event: Optional[Any],
+        stage_desc: str = "",
+    ) -> Optional[str]:
+        """检查是否收到取消信号，命中时返回统一状态文本。"""
+        if stop_event is None:
+            return None
+        try:
+            if stop_event.is_set():
+                status = "Cancelled: 用户手动停止"
+                if stage_desc:
+                    status = f"{status} ({stage_desc})"
+                logger.info(status)
+                return status
+        except Exception:
+            return None
+        return None
+
     def run_pipeline(
         self, 
         audio_path: str, 
@@ -160,15 +213,24 @@ class FullPipelineEngine:
         llm_target_lang: Optional[str] = None,
         # 进度回调: callable(fraction: float, description: str)
         progress_callback: Optional[Callable] = None,
+        stop_event: Optional[Any] = None,
     ) -> Tuple[Any, str]:
         
         temp_files_to_clean = []
         
         try:
+            cancel_status = self._cancel_status_if_requested(stop_event, "启动前")
+            if cancel_status:
+                return [], cancel_status
+
             processing_audio = None
             
             # 1. 预处理阶段
             self._notify(progress_callback, 0.0, "音频预处理中...")
+            cancel_status = self._cancel_status_if_requested(stop_event, "预处理前")
+            if cancel_status:
+                return [], cancel_status
+
             if enable_demucs:
                 processing_audio = self._isolate_vocals(audio_path)
                 temp_files_to_clean.append(processing_audio)
@@ -177,6 +239,10 @@ class FullPipelineEngine:
                 processing_audio = self._convert_to_wav(audio_path)
                 temp_files_to_clean.append(processing_audio)
             self._notify(progress_callback, 0.10, "预处理完成")
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "ASR前")
+            if cancel_status:
+                return [], cancel_status
             
             # 2. 转录阶段 (ASR)
             self._notify(progress_callback, 0.10, "加载 ASR 模型...")
@@ -232,6 +298,10 @@ class FullPipelineEngine:
                 batch_size=BATCH_SIZE
             )
             self._notify(progress_callback, 0.45, "转录完成")
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "对齐前")
+            if cancel_status:
+                return result.get("segments", []), cancel_status
             
             # 3. 强对齐阶段 (Alignment)
             self._notify(progress_callback, 0.45, "执行音素级对齐...")
@@ -251,6 +321,10 @@ class FullPipelineEngine:
             t_align_elapsed = _time_module.time() - t_align_start
             self._notify(progress_callback, 0.60, f"对齐完成 ({t_align_elapsed:.1f}s)")
             logger.info(f"转录与对齐完成 (对齐耗时: {t_align_elapsed:.1f}s)")
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "清洗前")
+            if cancel_status:
+                return result.get("segments", []), cancel_status
 
             # 3.5 幻觉过滤阶段
             if hallucination_mode == "code":
@@ -317,6 +391,10 @@ class FullPipelineEngine:
                 logger.warning("LLM 已启用但未配置 API，请编辑 config/llm_config.json")
             self._notify(progress_callback, 0.85, "LLM 处理完成")
 
+            cancel_status = self._cancel_status_if_requested(stop_event, "说话人分离前")
+            if cancel_status:
+                return result.get("segments", []), cancel_status
+
             # 4. 说话人区分阶段 (Diarization)
             if enable_diarization:
                 self._notify(progress_callback, 0.85, "说话人聚类...")
@@ -382,6 +460,10 @@ class FullPipelineEngine:
                 # 不再每次删除 diarize_model，保留缓存供下次复用
                 self._clear_gpu()
 
+            cancel_status = self._cancel_status_if_requested(stop_event, "导出前")
+            if cancel_status:
+                return result.get("segments", []), cancel_status
+
             self._notify(progress_callback, 1.0, "处理完成")
             return result["segments"], "Success"
 
@@ -416,6 +498,7 @@ class FullPipelineEngine:
         metadata: Optional[dict] = None,
         audio_display_name: Optional[str] = None,
         progress_callback: Optional[Callable] = None,
+        stop_event: Optional[Any] = None,
     ) -> Tuple[list, dict, str]:
         """
         语料库构建专用管道：ASR → 说话人分离 → 数据清洗 → 特征计算 → JSONL 导出。
@@ -433,6 +516,10 @@ class FullPipelineEngine:
         t_start = time.time()
         t_prev = t_start
         try:
+            cancel_status = self._cancel_status_if_requested(stop_event, "语料任务启动前")
+            if cancel_status:
+                return [], {}, cancel_status
+
             # 0. 中文标点引导：如果用户未指定 prompt 且目标是中文，自动注入标点引导
             effective_prompt = initial_prompt
             if not effective_prompt and lang in ('zh', None):
@@ -459,7 +546,11 @@ class FullPipelineEngine:
                 progress_callback=lambda frac, desc: self._notify(
                     progress_callback, frac * 0.6, desc
                 ) if progress_callback else None,
+                stop_event=stop_event,
             )
+
+            if status.startswith("Cancelled"):
+                return [], {}, status
 
             if status != "Success":
                 return [], {}, f"ASR 管道失败: {status}"
@@ -467,6 +558,10 @@ class FullPipelineEngine:
             t_asr_total = time.time() - t_prev
             logger.info(f"[ASR耗时] {t_asr_total:.1f}s，共产生 {len(segments)} 段")
             t_prev = time.time()
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "清洗前")
+            if cancel_status:
+                return [], {}, cancel_status
 
             # 1.5 SNR 计算（如果启用了规则 F）
             cfg = cleaning_config or CleaningConfig()
@@ -511,6 +606,10 @@ class FullPipelineEngine:
             logger.info(f"[清洗耗时] {t_clean:.1f}s，{len(segments)} → {len(cleaned_segments)} 段")
             t_prev = time.time()
 
+            cancel_status = self._cancel_status_if_requested(stop_event, "特征计算前")
+            if cancel_status:
+                return [], stats, cancel_status
+
             # 3. 高级特征计算
             self._notify(progress_callback, 0.75, "计算高级特征...")
             enriched = compute_advanced_features(cleaned_segments)
@@ -518,6 +617,10 @@ class FullPipelineEngine:
             t_feature = time.time() - t_prev
             logger.info(f"[特征耗时] {t_feature:.1f}s")
             t_prev = time.time()
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "规则G前")
+            if cancel_status:
+                return enriched, stats, cancel_status
 
             # 3.5 规则 G: 黑名单/脱轨内容过滤（需要 conversation_id，故在特征计算之后执行）
             if cfg.enable_blacklist_filter:
@@ -539,7 +642,14 @@ class FullPipelineEngine:
                     stats['rule_g_removed_samples'] = removed_samples
                     # 记录 Rule G 移除的段落到通用列表
                     for seg in removed_samples:
-                        stats['_removed_segments'].append({**seg, '_removed_by': 'rule_g', '_reason': '黑名单命中'})
+                        stats['_removed_segments'].append(
+                            {
+                                **seg,
+                                '_removed_by': 'rule_g',
+                                '_reason': '黑名单命中',
+                                '_reason_code': 'blacklist',
+                            }
+                        )
             
             t_filter = time.time() - t_prev
             if t_filter > 0.1:
@@ -572,11 +682,59 @@ class FullPipelineEngine:
                     if override_mode:
                         stats['rule_h_overridden'] = rule_h_stats.get('overridden_count', 0)
                     stats['output_count'] = len(enriched)
-                    # 记录 Rule H 移除的段落
+
+                    reason_by_cid = {
+                        item.get('conversation_id'): item.get('reason_code', 'other')
+                        for item in rule_h_stats.get('details', [])
+                        if isinstance(item, dict) and item.get('conversation_id') is not None
+                    }
+
+                    # 记录 Rule H 移除的段落。
+                    # 在 LLM 接管模式下，会把带 flag 的删除样本重归因到 C/D/E/G，
+                    # rule_h_removed 仅统计“无前置规则标签”的纯语义删除。
+                    if override_mode:
+                        stats['rule_h_removed'] = 0
+                        override_removed_split: Dict[str, int] = {
+                            'rule_c': 0,
+                            'rule_d': 0,
+                            'rule_e': 0,
+                            'rule_g': 0,
+                            'rule_h': 0,
+                        }
+
                     kept_h_ids = {id(seg) for seg in enriched}
                     for seg in before_rule_h:
                         if id(seg) not in kept_h_ids:
-                            stats['_removed_segments'].append({**seg, '_removed_by': 'rule_h', '_reason': 'LLM语义过滤'})
+                            cid = seg.get('conversation_id')
+                            reason_code = str(reason_by_cid.get(cid, 'other'))
+                            removed_by = 'rule_h'
+                            if override_mode:
+                                removed_by = _pick_override_removed_rule(seg)
+                                override_removed_split[removed_by] += 1
+                                if removed_by != 'rule_h':
+                                    stats[f'{removed_by}_removed'] = stats.get(f'{removed_by}_removed', 0) + 1
+                                else:
+                                    stats['rule_h_removed'] += 1
+
+                            stats['_removed_segments'].append(
+                                {
+                                    **seg,
+                                    '_removed_by': removed_by,
+                                    '_reason': _format_rule_h_reason(reason_code),
+                                    '_reason_code': reason_code,
+                                }
+                            )
+
+                    if override_mode:
+                        logger.info(
+                            "[LLM语义过滤·归因拆分] "
+                            f"C={override_removed_split['rule_c']}, "
+                            f"D={override_removed_split['rule_d']}, "
+                            f"E={override_removed_split['rule_e']}, "
+                            f"G={override_removed_split['rule_g']}, "
+                            f"H(纯语义)={override_removed_split['rule_h']}"
+                        )
+
                     t_llm = time.time() - t_prev
                     logger.info(
                         f"[LLM语义过滤耗时] {t_llm:.1f}s, "
@@ -591,6 +749,10 @@ class FullPipelineEngine:
                 t_prev = time.time()
             elif cfg.enable_llm_semantic_filter and not is_llm_configured():
                 logger.warning("[规则H] LLM 语义过滤已启用但未配置 API，跳过")
+
+            cancel_status = self._cancel_status_if_requested(stop_event, "导出前")
+            if cancel_status:
+                return enriched, stats, cancel_status
 
             # 4. JSONL 导出
             if export_jsonl_flag:

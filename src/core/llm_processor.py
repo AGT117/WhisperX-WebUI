@@ -44,6 +44,22 @@ def _estimate_tokens(text: str) -> int:
     return max(1, int(cjk / _CHARS_PER_TOKEN_CJK + latin / _CHARS_PER_TOKEN_LATIN))
 
 
+_SEMANTIC_REASON_CODES = {
+    "ad",
+    "emo",
+    "asr",
+    "keep",
+    "override",
+    "other",
+    "unchecked",
+}
+
+
+def _normalize_reason_code(value: Any) -> str:
+    code = str(value or "").strip().lower()
+    return code if code in _SEMANTIC_REASON_CODES else "other"
+
+
 # ── Prompt 模板 ─────────────────────────────────────────────────
 
 _SYS_SEGMENTATION = """\
@@ -100,14 +116,14 @@ _SYS_SEMANTIC_FILTER = """\
 1. "is_ad_or_irrelevant" (bool): 是否包含商业软广、播客赞助鸣谢、或刻板的单向访谈。
 2. "emotion_score" (int, 1-5): 情感丰富度。1为毫无感情/念稿，5为情绪饱满/强共情。
 3. "hallucination_risk" (bool): 是否存在明显的语音识别错误导致的逻辑不通。
-4. "reason" (string): 简短的判决理由（20字以内）。
+4. "reason_code" (string): 原因代码，仅允许 "ad"|"emo"|"asr"|"keep"|"other"。
 
 输入格式：JSON 数组，每个元素有 "id"（会话组编号）和 "texts"（该组所有句子的数组）。
 
 规则：
-1. 返回 **纯 JSON 数组**，每个元素是对象: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "reason": "..."}
+1. 返回 **纯 JSON 数组**，每个元素是对象: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "reason_code": "..."}
 2. 必须对每个输入组都给出评估，不可遗漏
-3. 无法确定时，给出保守评估（保留而非丢弃）
+3. 无法确定时，给出保守评估（保留而非丢弃），并使用 reason_code="keep"
 4. 不要输出任何 JSON 以外的内容（无解释、无 markdown）"""
 
 _SYS_SEMANTIC_FILTER_OVERRIDE = """\
@@ -126,15 +142,15 @@ _SYS_SEMANTIC_FILTER_OVERRIDE = """\
 2. "emotion_score" (int, 1-5): 情感丰富度。1为毫无感情/念稿，5为情绪饱满/强共情。
 3. "hallucination_risk" (bool): 是否存在明显的语音识别错误导致的逻辑不通。
 4. "final_decision" (bool): **最终裁决**——true=保留该组, false=丢弃该组。请综合所有信息做出判断。
-5. "reason" (string): 简短的判决理由（20字以内）。
+5. "reason_code" (string): 原因代码，仅允许 "ad"|"emo"|"asr"|"keep"|"override"|"other"。
 
 输入格式：JSON 数组，每个元素有 "id"（会话组编号）、"texts"（句子数组）、"flags"（被触发的标记列表，可能为空）。
 
 规则：
-1. 返回 **纯 JSON 数组**，每个元素: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "final_decision": bool, "reason": "..."}
+1. 返回 **纯 JSON 数组**，每个元素: {"id": 组编号, "is_ad_or_irrelevant": bool, "emotion_score": int, "hallucination_risk": bool, "final_decision": bool, "reason_code": "..."}
 2. 必须对每个输入组都给出评估，不可遗漏
 3. 对于无标记(flags为空)的组：通常应保留(final_decision=true)，除非内容确实有问题
-4. 对于有标记的组：仔细审核标记是否合理，LLM 有权推翻规则引擎的判断
+4. 对于有标记的组：仔细审核标记是否合理，LLM 有权推翻规则引擎的判断；若推翻并保留建议 reason_code="override"
 5. 不要输出任何 JSON 以外的内容（无解释、无 markdown）"""
 
 _SYS_HALLUCINATION = """\
@@ -436,11 +452,14 @@ class LLMProcessor:
                         if isinstance(item, dict):
                             item_id = item.get("id")
                             if item_id is not None:
+                                raw_reason_code = item.get("reason_code")
+                                if not raw_reason_code and item.get("reason"):
+                                    raw_reason_code = "other"
                                 result = {
                                     "is_ad_or_irrelevant": bool(item.get("is_ad_or_irrelevant", False)),
                                     "emotion_score": int(item.get("emotion_score", 3)),
                                     "hallucination_risk": bool(item.get("hallucination_risk", False)),
-                                    "reason": str(item.get("reason", ""))[:50],
+                                    "reason_code": _normalize_reason_code(raw_reason_code),
                                     "llm_status": "checked",
                                 }
                                 if override_mode:
@@ -456,7 +475,7 @@ class LLMProcessor:
                         "is_ad_or_irrelevant": False,
                         "emotion_score": 3,
                         "hallucination_risk": False,
-                        "reason": "API未返回",
+                        "reason_code": "unchecked",
                         "llm_status": "unchecked",
                     }
 
@@ -497,7 +516,7 @@ class LLMProcessor:
                 "is_ad_or_irrelevant": False,
                 "emotion_score": 3,
                 "hallucination_risk": False,
-                "reason": "未评估",
+                "reason_code": "unchecked",
                 "llm_status": "unchecked",
             })
 
@@ -534,7 +553,7 @@ class LLMProcessor:
                         f"[规则H] 移除 (cid={cid}, "
                         f"ad={result.get('is_ad_or_irrelevant')}, "
                         f"emo={result.get('emotion_score')}, "
-                        f"reason={result.get('reason')}): "
+                        f"reason_code={result.get('reason_code')}): "
                         f"\"{seg.get('text', '')[:40]}\""
                     )
             else:

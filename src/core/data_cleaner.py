@@ -323,7 +323,14 @@ class DataCleaner:
                 filtered.append(seg)
             else:
                 self.stats['rule_a_removed'] += 1
-                self.removed_segments.append({**seg, '_removed_by': 'rule_a', '_reason': f'置信度={avg_conf:.3f}'})
+                self.removed_segments.append(
+                    {
+                        **seg,
+                        '_removed_by': 'rule_a',
+                        '_reason': f'置信度={avg_conf:.3f}',
+                        '_reason_code': 'conf',
+                    }
+                )
                 logger.debug(
                     f"[规则A] 移除 (置信度={avg_conf:.3f}): "
                     f"\"{seg.get('text', '')[:50]}\""
@@ -380,7 +387,14 @@ class DataCleaner:
                     victim = j if b_dur <= a_dur else i
                     remove_indices.add(victim)
                     victim_seg = segments[victim]
-                    self.removed_segments.append({**victim_seg, '_removed_by': 'rule_b', '_reason': f'重叠{overlap_duration:.2f}s'})
+                    self.removed_segments.append(
+                        {
+                            **victim_seg,
+                            '_removed_by': 'rule_b',
+                            '_reason': f'重叠{overlap_duration:.2f}s',
+                            '_reason_code': 'overlap',
+                        }
+                    )
                     logger.debug(
                         f"[规则B] 移除重叠音 (重叠{overlap_duration:.2f}s): "
                         f"\"{victim_seg.get('text', '')[:50]}\""
@@ -431,7 +445,14 @@ class DataCleaner:
                     )
                 else:
                     self.stats['rule_c_removed'] += 1
-                    self.removed_segments.append({**seg, '_removed_by': 'rule_c', '_reason': f'速率={rate:.2f}/s'})
+                    self.removed_segments.append(
+                        {
+                            **seg,
+                            '_removed_by': 'rule_c',
+                            '_reason': f'速率={rate:.2f}/s',
+                            '_reason_code': 'length',
+                        }
+                    )
                     logger.debug(
                         f"[规则C] 移除 (速率={rate:.2f}/s, 时长={duration:.2f}s): "
                         f"\"{text[:50]}\""
@@ -503,7 +524,14 @@ class DataCleaner:
                     )
                 else:
                     self.stats['rule_d_removed'] += 1
-                    self.removed_segments.append({**seg, '_removed_by': 'rule_d', '_reason': f'孤岛距离{min_distance_to_other:.1f}s'})
+                    self.removed_segments.append(
+                        {
+                            **seg,
+                            '_removed_by': 'rule_d',
+                            '_reason': f'孤岛距离{min_distance_to_other:.1f}s',
+                            '_reason_code': 'context',
+                        }
+                    )
                     logger.debug(
                         f"[规则D] 移除孤岛段 | [说话人:{cur_speaker}] "
                         f"\"{seg.get('text', '')[:40]}...\" "
@@ -542,7 +570,14 @@ class DataCleaner:
                     )
                 else:
                     self.stats['rule_e_removed'] += 1
-                    self.removed_segments.append({**seg, '_removed_by': 'rule_e', '_reason': f'低信息{duration:.2f}s'})
+                    self.removed_segments.append(
+                        {
+                            **seg,
+                            '_removed_by': 'rule_e',
+                            '_reason': f'低信息{duration:.2f}s',
+                            '_reason_code': 'low_info',
+                        }
+                    )
                     logger.debug(
                         f"[规则E] 移除低信息: \"{text}\" ({duration:.2f}s)"
                     )
@@ -562,7 +597,14 @@ class DataCleaner:
             snr = seg.get('snr_db')
             if snr is not None and snr < self.config.min_snr_db:
                 self.stats['rule_f_removed'] += 1
-                self.removed_segments.append({**seg, '_removed_by': 'rule_f', '_reason': f'SNR={snr:.1f}dB'})
+                self.removed_segments.append(
+                    {
+                        **seg,
+                        '_removed_by': 'rule_f',
+                        '_reason': f'SNR={snr:.1f}dB',
+                        '_reason_code': 'snr',
+                    }
+                )
                 logger.debug(
                     f"[规则F] 移除低SNR ({snr:.1f}dB): "
                     f"\"{seg.get('text', '')[:50]}\""
