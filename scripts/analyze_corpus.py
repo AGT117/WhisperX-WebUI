@@ -53,6 +53,16 @@ else:
 matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 
+# 图表输出文件名（中文）
+CHART_FILENAMES = {
+    "funnel": "清洗漏斗图.png",
+    "speed_histogram": "语速分布图.png",
+    "interaction_delay": "交互延迟散点图.png",
+    "robustness": "多源鲁棒性对比图.png",
+    "llm_emotion": "LLM语句情感分析图.png",
+}
+
+
 def _load_jsonl(path: Path) -> List[Dict]:
     rows: List[Dict] = []
     with path.open("r", encoding="utf-8") as file:
@@ -373,7 +383,7 @@ def _draw_robustness_chart(per_file_stats: List[Dict], output_path: Path) -> boo
 def _draw_llm_analysis(rows: List[Dict], output_dir: Path) -> bool:
     """
     绘制 LLM 规则 H 相关的可视化分析（情感评分分布）。
-    生成图：emotion_distribution.png
+    生成图：LLM语句情感分析图.png
     """
     import numpy as np
 
@@ -421,9 +431,10 @@ def _draw_llm_analysis(rows: List[Dict], output_dir: Path) -> bool:
                   bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow", alpha=0.7))
         
         fig.tight_layout()
-        fig.savefig(output_dir / "emotion_distribution.png", dpi=180, bbox_inches="tight")
+        llm_output = output_dir / CHART_FILENAMES["llm_emotion"]
+        fig.savefig(llm_output, dpi=180, bbox_inches="tight")
         plt.close(fig)
-        print(f"[输出] 情感评分分布: {output_dir / 'emotion_distribution.png'}")
+        print(f"[输出] 情感评分分布: {llm_output}")
 
     return True
 
@@ -457,13 +468,13 @@ def main() -> None:
 
     # 1) 漏斗图
     if args.enable_funnel and quality_stats:
-        funnel_path = output_dir / "cleaning_funnel.png"
+        funnel_path = output_dir / CHART_FILENAMES["funnel"]
         _draw_funnel(quality_stats, funnel_path)
         print(f"[输出] 漏斗图: {funnel_path}")
 
     # 2) 语速直方图
     if args.enable_speed_histogram:
-        histogram_path = output_dir / "speech_rate_histogram.png"
+        histogram_path = output_dir / CHART_FILENAMES["speed_histogram"]
         ok = _draw_speed_histogram(rows, histogram_path)
         if ok:
             print(f"[输出] 语速直方图: {histogram_path}")
@@ -471,7 +482,7 @@ def main() -> None:
     # 3) 交互延迟散点图
     if args.enable_interaction_delay:
         try:
-            interaction_path = output_dir / "interaction_delay.png"
+            interaction_path = output_dir / CHART_FILENAMES["interaction_delay"]
             ok = _draw_interaction_delay(rows, interaction_path)
             if ok:
                 print(f"[输出] 交互延迟图: {interaction_path}")
@@ -481,7 +492,7 @@ def main() -> None:
     # 4) 多数据源鲁棒性对比
     if args.enable_robustness:
         try:
-            robustness_path = output_dir / "robustness_comparison.png"
+            robustness_path = output_dir / CHART_FILENAMES["robustness"]
             ok = _draw_robustness_chart(quality_per_file, robustness_path)
             if ok:
                 print(f"[输出] 鲁棒性对比图: {robustness_path}")

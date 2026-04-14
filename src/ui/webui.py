@@ -771,7 +771,6 @@ def process_corpus_task(
         _release_corpus_task_guard()
         return
 
-    quality_log_path = save_dir / "日志.txt"
     terminal_log_path = save_dir / "terminal.log"
     quality_stats_path = save_dir / "quality_stats.json"
     removed_all_path = save_dir / "removed_segments.jsonl"
@@ -933,7 +932,12 @@ def process_corpus_task(
             )
         )
         root_logger.addHandler(terminal_handler)
-        logger.info("[TerminalLog] 语料构建开始 | 输出目录: %s | 续跑: %s", save_dir, resume_mode)
+        logger.info(
+            "[TerminalLog] 语料构建开始 | 输出目录: %s | 续跑: %s | 文件数: %s",
+            save_dir,
+            resume_mode,
+            total_files,
+        )
     except Exception as e:
         logger.warning(f"初始化 terminal.log 失败: {e}")
 
@@ -1246,7 +1250,13 @@ def process_corpus_task(
 
                 update_queue.put((current_file_progress, current_step))
 
-            logger.info(status_msg)
+            logger.info(
+                "正在处理: %s %s (%s/%s)",
+                file_stem,
+                mode_info,
+                current_index,
+                total_files,
+            )
             yield _render_live_panel(
                 current_index,
                 file_stem,
@@ -1427,7 +1437,15 @@ def process_corpus_task(
                     f"✓ [{current_index}/{total_files}] {file_stem}  ({duration:.1f}s)\n"
                     f"  保留 {stats.get('output_count',0)} 段 / 移除 {removed} 段\n"
                 )
-                logger.info(file_log.strip())
+                logger.info(
+                    "处理完成: %s (%s/%s) | 耗时: %.1fs | 保留: %s | 移除: %s",
+                    file_stem,
+                    current_index,
+                    total_files,
+                    duration,
+                    int(stats.get('output_count', 0)),
+                    int(removed),
+                )
                 log_buffer = file_log + log_buffer
 
                 sample_sec = max(duration, 0.0)
@@ -1500,7 +1518,14 @@ def process_corpus_task(
                     f"  失败原因: {str(e)}\n"
                 )
                 log_buffer = error_log + log_buffer
-                logger.error(f"Corpus Task Failed: {e}")
+                logger.error(
+                    "处理失败: %s (%s/%s) | 耗时: %.1fs | 错误: %s",
+                    file_stem,
+                    current_index,
+                    total_files,
+                    duration,
+                    str(e).replace("\n", " "),
+                )
                 _write_checkpoint("running", current_index, file_stem, f"处理失败: {str(e)}")
                 yield _render_live_panel(
                     current_index,
@@ -1520,8 +1545,6 @@ def process_corpus_task(
             final_dataset = "dataset_merged.jsonl"
         elif len(jsonl_files) == 1:
             final_dataset = Path(jsonl_files[0]).name
-
-        stats_report = _format_corpus_stats(total_stats, total_files, str(save_dir), final_dataset)
 
         total_removed = total_stats['total_input'] - total_stats['total_output']
         keep_rate = (total_stats['total_output'] / total_stats['total_input']) if total_stats['total_input'] > 0 else 0.0
@@ -1567,7 +1590,6 @@ def process_corpus_task(
             except Exception as e:
                 logger.warning(f"导出清洗段落汇总失败: {e}")
 
-        post_logs = []
         dataset_jsonl_path = (save_dir / final_dataset) if final_dataset else None
         if (not stop_requested) and enable_materialize and dataset_jsonl_path and dataset_jsonl_path.exists():
             try:
@@ -1597,15 +1619,21 @@ def process_corpus_task(
                 stdout_text = (result.stdout or "").strip()
                 stderr_text = (result.stderr or "").strip()
                 if stdout_text:
-                    logger.info("[后处理][物化][stdout]\n%s", stdout_text)
+                    for line in stdout_text.splitlines():
+                        clean = line.strip()
+                        if clean:
+                            logger.info("[后处理][物化][stdout] %s", clean)
                 if stderr_text:
-                    logger.warning("[后处理][物化][stderr]\n%s", stderr_text)
+                    for line in stderr_text.splitlines():
+                        clean = line.strip()
+                        if clean:
+                            logger.warning("[后处理][物化][stderr] %s", clean)
                 if result.returncode == 0:
-                    post_logs.append("[后处理] 数据物化完成")
+                    logger.info("[后处理] 数据物化完成")
                 else:
-                    post_logs.append(f"[后处理] 数据物化失败: {result.stderr.strip() or result.stdout.strip()}")
+                    logger.error("[后处理] 数据物化失败: %s", result.stderr.strip() or result.stdout.strip())
             except Exception as e:
-                post_logs.append(f"[后处理] 数据物化异常: {e}")
+                logger.error("[后处理] 数据物化异常: %s", str(e).replace("\n", " "))
 
         if (not stop_requested) and enable_analysis and dataset_jsonl_path and dataset_jsonl_path.exists():
             try:
@@ -1634,15 +1662,21 @@ def process_corpus_task(
                 stdout_text = (result.stdout or "").strip()
                 stderr_text = (result.stderr or "").strip()
                 if stdout_text:
-                    logger.info("[后处理][分析][stdout]\n%s", stdout_text)
+                    for line in stdout_text.splitlines():
+                        clean = line.strip()
+                        if clean:
+                            logger.info("[后处理][分析][stdout] %s", clean)
                 if stderr_text:
-                    logger.warning("[后处理][分析][stderr]\n%s", stderr_text)
+                    for line in stderr_text.splitlines():
+                        clean = line.strip()
+                        if clean:
+                            logger.warning("[后处理][分析][stderr] %s", clean)
                 if result.returncode == 0:
-                    post_logs.append("[后处理] 可视化分析完成")
+                    logger.info("[后处理] 可视化分析完成")
                 else:
-                    post_logs.append(f"[后处理] 可视化分析失败: {result.stderr.strip() or result.stdout.strip()}")
+                    logger.error("[后处理] 可视化分析失败: %s", result.stderr.strip() or result.stdout.strip())
             except Exception as e:
-                post_logs.append(f"[后处理] 可视化分析异常: {e}")
+                logger.error("[后处理] 可视化分析异常: %s", str(e).replace("\n", " "))
 
         should_release_memory = bool(release_memory) or bool(stop_requested)
         if should_release_memory:
@@ -1654,30 +1688,24 @@ def process_corpus_task(
         completed_files = _count_completed_files()
         if stop_requested:
             progress(1.0, desc="任务已停止")
-            final_log = f"任务被用户手动停止。已完成 {completed_files}/{total_files} 个文件。\n" + log_buffer
             run_status = "stopped"
+            logger.info(
+                "任务已停止 | 已完成: %s/%s | 成功: %s | 失败: %s",
+                completed_files,
+                total_files,
+                total_stats['success_files'],
+                total_stats['failed_files'],
+            )
         else:
             progress(1.0, desc="语料库构建完成")
-            final_log = f"全部 {total_files} 个文件处理完毕。\n" + log_buffer
             run_status = "completed"
-
-        if post_logs:
-            final_log = final_log + "\n" + "\n".join(post_logs) + "\n"
-
-        human_log = final_log + "\n" + stats_report + "\n"
-        try:
-            with open(quality_log_path, "w", encoding="utf-8") as f:
-                f.write(human_log)
-        except Exception as e:
-            logger.warning(f"写入 日志.txt 失败: {e}")
-
-        try:
-            with open(terminal_log_path, "a", encoding="utf-8") as f:
-                f.write("\n" + "=" * 60 + "\n")
-                f.write("[UI摘要]\n")
-                f.write(human_log)
-        except Exception as e:
-            logger.warning(f"写入 terminal.log 失败: {e}")
+            logger.info(
+                "任务完成 | 总文件: %s | 成功: %s | 失败: %s | 数据集: %s",
+                total_files,
+                total_stats['success_files'],
+                total_stats['failed_files'],
+                final_dataset if final_dataset else "",
+            )
 
         _write_checkpoint(
             run_status,
@@ -2610,13 +2638,13 @@ def create_ui():
                                 
                                 gr.Markdown("---")
                                 enable_demucs = gr.Checkbox(
-                                    label="启用人声分离预处理 (BS-RoFormer)", 
+                                    label="启用人声分离预处理", 
                                     value=False,
                                     info="在识别前将人声从背景音乐或噪音中分离。适用于歌曲或高噪环境，会增加总处理时间，但对于提高识别率很有帮助。"
                                 )
                                 
                                 prompt_input = gr.Textbox(
-                                    label="上下文提示词 (Prompt)",
+                                    label="上下文提示词",
                                     info="提供给模型的风格引导或专有名词参考。选择语言后会自动填入对应提示词，也可手动修改。",
                                     value="",
                                     placeholder="请输入提示词...",
@@ -2643,7 +2671,7 @@ def create_ui():
                                 )
                                 vad_onset_slider = gr.Slider(
                                     minimum=0.1, maximum=1.0, value=0.35, step=0.05,
-                                    label="VAD 触发阈值 (Onset)",
+                                    label="VAD 触发阈值",
                                     info="语音活动检测的灵敏度。数值越高越严格（减少幻觉），数值越低越灵敏（保留更多细节）。默认 0.35。"
                                 )
                                 
@@ -2653,7 +2681,7 @@ def create_ui():
                                     ["代码规则过滤", "LLM 智能过滤", "关闭"],
                                     value="关闭",
                                     label="幻觉过滤模式",
-                                    info="代码规则: 基于置信度+模式匹配+时间异常(0 API 费用) | LLM 智能: 由大模型判断(需配置 llm_config.json) | 关闭: 不过滤"
+                                    info="代码规则: 基于置信度+模式匹配+时间异常 | LLM 智能: 由大模型判断(需配置 llm_config.json) | 关闭: 不过滤"
                                 )
                                 hallucination_threshold_slider = gr.Slider(
                                     minimum=0.1, maximum=0.8, value=0.35, step=0.05,
@@ -2663,7 +2691,7 @@ def create_ui():
                                 
                             with gr.TabItem("说话人区分"):
                                 enable_diar = gr.Checkbox(
-                                    label="启用说话人聚类 (Diarization)", 
+                                    label="启用说话人聚类", 
                                     value=False,
                                     info="识别并区分音频中的不同说话人。需要有效的 HuggingFace Token。"
                                 )
@@ -2689,7 +2717,7 @@ def create_ui():
                                     ["segmentation", "translation", "both"],
                                     value="segmentation",
                                     label="处理模式",
-                                    info="segmentation: 仅智能断句 | translation: 仅翻译 | both: 断句 + 翻译（双语字幕）",
+                                    info="segmentation: 仅智能断句 | translation: 仅翻译 | both: 断句 + 翻译",
                                 )
                                 llm_target_lang_input = gr.Textbox(
                                     label="翻译目标语言",
@@ -2720,7 +2748,7 @@ def create_ui():
                         
                         with gr.Row(variant="panel"):
                             output_dir_input = gr.Textbox(
-                                label="输出目录 (Output Directory)", 
+                                label="输出目录", 
                                 value=str(OUTPUT_DIR),
                                 info="选择或输入结果保存路径",
                                 scale=5,
@@ -2796,7 +2824,7 @@ def create_ui():
                         with gr.Tabs():
                             with gr.TabItem("数据输入"):
                                 gr.Markdown(
-                                    "**方式一：拖拽上传**（适合少量或文件）"
+                                    "**方式一：拖拽上传**"
                                 )
                                 corpus_file_input = gr.File(
                                     label="拖拽上传音视频",
@@ -2806,7 +2834,7 @@ def create_ui():
                                     height=80,
                                 )
                                 corpus_audio_prefix = gr.Textbox(
-                                    label="音频路径前缀 (仅拖拽上传时生效)",
+                                    label="音频路径前缀",
                                     placeholder="例如: E:\\音频\\example",
                                     info="拖拽上传时 Gradio 无法获取原始路径。设此项后 JSONL 中 audio_path = 前缀/文件名。路径输入时自动忽略。",
                                     max_lines=1,
@@ -2846,7 +2874,7 @@ def create_ui():
                                     label="VAD 阈值",
                                 )
                                 corpus_prompt = gr.Textbox(
-                                    label="提示词 (Prompt)",
+                                    label="提示词",
                                     placeholder="留空时，中文语音将自动注入标点引导 prompt",
                                     info="选择语言后会自动填入对应提示词，也可手动修改。中文场景留空即可自动添加标点引导。",
                                     lines=2,
@@ -2873,18 +2901,18 @@ def create_ui():
                                 rule_a_threshold = gr.Slider(
                                     minimum=0.3, maximum=1.0, value=0.6, step=0.05,
                                     label="置信度阈值",
-                                    info="低于此值的句子将被丢弃。语料库构建推荐 0.5-0.7（比字幕更宽松）。",
+                                    info="低于此值的句子将被丢弃。",
                                 )
                                 
                                 gr.Markdown("---")
                                 gr.Markdown("**规则 B: 重叠音过滤**")
                                 rule_b_cb = gr.Checkbox(
                                     label="启用", value=True,
-                                    info="检测多人同时说话的片段，仅移除较短的一方（保留主要内容）。",
+                                    info="检测多人同时说话的片段，仅移除较短的一方。",
                                 )
                                 rule_b_min_overlap = gr.Slider(
                                     minimum=0.1, maximum=3.0, value=0.5, step=0.1,
-                                    label="最小重叠时长 (秒)",
+                                    label="最小重叠时长(秒)",
                                     info="重叠 < 此值视为对齐误差忽略。播客/访谈推荐 0.5-1.0。",
                                 )
                                 
@@ -2892,7 +2920,7 @@ def create_ui():
                                 gr.Markdown("**规则 C: 长度匹配度**")
                                 rule_c_cb = gr.Checkbox(
                                     label="启用", value=True,
-                                    info="音频时长与文本字数比例极度失调（吞音/乱码）时判定为噪音。",
+                                    info="音频时长与文本字数比例极度失调时判定为噪音。",
                                 )
                                 
                                 gr.Markdown("---")
@@ -2965,7 +2993,7 @@ def create_ui():
                                 rule_h_emotion_threshold = gr.Slider(
                                     minimum=1, maximum=5, value=1, step=1,
                                     label="情感得分阈值",
-                                    info="LLM 对每组对话评分 1-5 分，低于此值的组将被丢弃。1=最宽松(几乎不过滤)，5=最严格(仅保留强共情内容)。",
+                                    info="LLM 对每组对话评分 1-5 分，低于此值的组将被丢弃。1=最宽松，5=最严格。",
                                 )
                                 rule_h_concurrency = gr.Slider(
                                     minimum=1, maximum=10, value=3, step=1,
@@ -3000,7 +3028,7 @@ def create_ui():
                                 )
 
                                 gr.Markdown("---")
-                                gr.Markdown("**阶段二：可视化分析（论文图表）**")
+                                gr.Markdown("**阶段二：可视化分析**")
                                 corpus_enable_analysis = gr.Checkbox(
                                     label="处理完成后自动生成图表",
                                     value=True,
@@ -3030,7 +3058,7 @@ def create_ui():
                                         label="④ 多源鲁棒性对比", value=True, scale=1
                                     )
                                     corpus_chart_llm_analysis = gr.Checkbox(
-                                        label="⑤ LLM语义分析图", value=True, scale=1,
+                                        label="⑤ LLM语句情感分析图", value=True, scale=1,
                                         info="需启用规则H后才有数据"
                                     )
 
@@ -3074,7 +3102,7 @@ def create_ui():
                         
                         with gr.Row(variant="panel"):
                             corpus_output_dir = gr.Textbox(
-                                label="项目输出目录（主文件夹）",
+                                label="项目输出目录",
                                 value=str(OUTPUT_DIR / "corpus_work"),
                                 info="包含 JSONL、日志、dataset、analysis 等所有输出的统一项目文件夹",
                                 scale=5,
